@@ -1,0 +1,52 @@
+{
+  "name": "udp-logger",
+  "version": "0.1.0",
+  "description": "Server and client for udp logging with possibility to encrypt data. Zero-dependency. CJS & ESM",
+  "main": "cjs/index.js",
+  "module": "index.js",
+  "exports": {
+    ".": {
+      "require": "./cjs/index.js",
+      "default": "./index.js"
+    }
+  },
+  "scripts": {
+    "build": "esbuild index.js --bundle --platform=node --target=node12 --outfile='./cjs/index.js'",
+    "release:patch": "standard-version --release-as patch",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "push-release": "git push --follow-tags origin master",
+    "prettify": "prettier --write -u './*.js' './**/*.js' !./cjs/index.js",
+    "test": "standard && node tests/index.js && node cjs/test.js",
+    "fix": "npm run prettify && standard --fix",
+    "prepare": "husky install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JerryCauser/udp-logger.git"
+  },
+  "keywords": [
+    "logger",
+    "udp",
+    "udp logger"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "author": "Artem Abzanov",
+  "bugs": {
+    "url": "https://github.com/JerryCauser/udp-logger/issues"
+  },
+  "homepage": "https://github.com/JerryCauser/udp-logger#readme",
+  "devDependencies": {
+    "esbuild": "^0.14.38",
+    "husky": "^7.0.4",
+    "prettier": "^2.6.2",
+    "standard": "^17.0.0",
+    "standard-version": "^9.3.2"
+  },
+  "standard": {
+    "ignore": [
+      "cjs/index.js"
+    ]
+  }
+}
