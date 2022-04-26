@@ -1,31 +1,31 @@
-import dgram from 'node:dgram'
 import crypto from 'node:crypto'
+import dgram from 'node:dgram'
+import v8 from 'node:v8'
 import { Buffer } from 'node:buffer'
-import * as util from 'util'
+import { generateId, ID_SIZE } from './identifier.js'
 
 const IV_SIZE = 16
+
+export const DEFAULT_SERIALIZER = v8.serialize
 
 /**
  * @param {object} [options={}]
  * @param {string} [options.type='udp4']
  * @param {number} [options.port=44002]
  * @param {string} [options.host=('127.0.0.1'|'::1')]
+ * @param {number} [options.packetSize=1280]
  * @param {object} [options.encryption]
  * @param {string} [options.encryption.algorithm='aes-256-ctr']
  * @param {string} options.encryption.secret
+ * @param {function} [options.serializer=v8.serialize]
  */
 class UDPLoggerClient {
   #port
   #host
   #type
-  #mtu
+  #packetSize
 
-  #format = {
-    depth: null,
-    maxStringLength: null,
-    maxArrayLength: null,
-    breakLength: 80
-  }
+  #serializer
 
   #encryptionAlgorithm
   #encryptionSecret
@@ -34,26 +34,23 @@ class UDPLoggerClient {
     type = 'udp4',
     port = 44002,
     host = type === 'udp4' ? '127.0.0.1' : '::1',
-    mtu = 1280,
+    packetSize = 1280,
     encryption,
-    format
+    serializer = DEFAULT_SERIALIZER
   } = {}) {
     this.#port = port
     this.#host = host
     this.#type = type
-    this.#mtu = mtu
+    this.#packetSize = packetSize - ID_SIZE
 
-    if (typeof format === 'object') Object.assign(this.#format, format)
+    this.#serializer = serializer
 
     this.#encryptionSecret = encryption?.secret
     this.#encryptionAlgorithm = encryption?.algorithm ?? (this.#encryptionSecret ? 'aes-256-ctr' : undefined)
 
     if (this.#encryptionSecret) {
-      this.#mtu = mtu - IV_SIZE
+      this.#packetSize = packetSize - IV_SIZE
       this.#encryptionSecret = Buffer.from(this.#encryptionSecret)
-
-      const _send = this.send
-      this.send = message => _send(this.#encryptMessage(message))
     }
   }
 
@@ -77,27 +74,49 @@ class UDPLoggerClient {
    * @param {*} args
    */
   log = (...args) => {
-    this.send(util.formatWithOptions(this.#format, ...args))
+    const id = generateId()
+    this.send(this.#serializer(args), id)
   }
 
   /**
-   * @param {string|Buffer} message
+   * @param {Buffer} payload
+   * @param {Buffer} id
    */
-  send = (message) => {
-    let payload = Buffer.from(message)
+  send = (payload, id = generateId()) => {
+    for (let i = 0; i < payload.length; i += this.#packetSize) {
+      let chunk = this.#markChunk(id, payload.subarray(i, i + this.#packetSize))
 
-    if (payload.length > this.#mtu) {
-      const surplus = payload.subarray(this.#mtu)
-      setImmediate(() => this.send(surplus))
+      if (this.#encryptionAlgorithm !== undefined) {
+        chunk = this.#encryptMessage(chunk)
+      }
 
-      payload = payload.subarray(0, this.#mtu)
+      this.#sendChunk(chunk)
     }
+  }
 
+  /**
+   * @param {Buffer} payload
+   */
+  #sendChunk = (payload) => {
     const client = dgram.createSocket(this.#type)
     client.send(payload, this.#port, this.#host, (err) => {
       if (err) console.error(err)
       client.close()
     })
+  }
+
+  /**
+   * @param {Buffer} id
+   * @param {Buffer} chunk
+   * @returns {Buffer}
+   */
+  #markChunk (id, chunk) {
+    const marked = Buffer.alloc(chunk.length + ID_SIZE)
+
+    marked.set(id, 0)
+    marked.set(chunk, ID_SIZE)
+
+    return marked
   }
 }
 
