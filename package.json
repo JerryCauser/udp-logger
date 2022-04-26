@@ -1,6 +1,6 @@
 {
   "name": "udp-logger",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Server and client for udp logging with possibility to encrypt data. Zero-dependency. CJS & ESM",
   "main": "cjs/index.js",
   "module": "index.js",
