@@ -65,7 +65,10 @@ class UDPLoggerClient {
     const cipher = crypto.createCipheriv(this.#encryptionAlgorithm, this.#encryptionSecret, iv)
     const beginChunk = cipher.update(payload)
     const finalChunk = cipher.final()
-    const result = Buffer.concat([iv, beginChunk, finalChunk], IV_SIZE + beginChunk.length + finalChunk.length)
+    const result = Buffer.concat(
+      [iv, beginChunk, finalChunk],
+      IV_SIZE + beginChunk.length + finalChunk.length
+    )
 
     return result
   }

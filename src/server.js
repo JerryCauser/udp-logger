@@ -1,4 +1,3 @@
-import EventEmitter from 'node:events'
 import crypto from 'node:crypto'
 import dgram from 'node:dgram'
 import path from 'node:path'
@@ -6,6 +5,7 @@ import util from 'node:util'
 import v8 from 'node:v8'
 import fs from 'node:fs'
 import { Buffer } from 'node:buffer'
+import { EventEmitter } from 'node:events'
 import { ID_SIZE, parseId, BUFFER_COMPARE_SORT_FUNCTION } from './identifier.js'
 
 /**
@@ -41,10 +41,13 @@ export const DEFAULT_SERIALIZER = (buffer) => {
  * @param {number} [options.port=44002]
  * @param {string} options.dirName
  * @param {string} [options.fileName]
- * @param {function} [options.formatMessage]
+ * @param {string} [options.encoding='utf8']
  * @param {object} [options.decryption]
  * @param {object} [options.decryption.algorithm]
  * @param {object} [options.decryption.secret]
+ * @param {number} [options.writeInterval=1000]
+ * @param {function} [options.formatMessage]
+ * @param {function} [options.deserializer]
  */
 class UDPLoggerServer extends EventEmitter {
   #port
@@ -59,7 +62,7 @@ class UDPLoggerServer extends EventEmitter {
   #decryptionAlgorithm
   #decryptionSecret
 
-  #instance
+  #socket
   #writeStream
 
   #deserializer
@@ -70,10 +73,10 @@ class UDPLoggerServer extends EventEmitter {
   #collector = []
 
   constructor ({
+    type = 'udp4',
     port = 44002,
     dirName,
     fileName = `udp-port-${port}.log`,
-    type = 'udp4',
     encoding = 'utf8',
     decryption,
     deserializer = DEFAULT_SERIALIZER,
@@ -115,8 +118,8 @@ class UDPLoggerServer extends EventEmitter {
     this.#writeIntervalId = setInterval(this.#writeIntervalFunction, this.#writeIntervalTime)
     await this.#initSocket()
 
-    this.#address = this.#instance.address().address
-    this.#port = this.#instance.address().port
+    this.#address = this.#socket.address().address
+    this.#port = this.#socket.address().port
 
     this.emit('start', this)
 
@@ -129,12 +132,12 @@ class UDPLoggerServer extends EventEmitter {
   async stop () {
     clearInterval(this.#writeIntervalId)
     this.#detachHandlers()
-    this.#instance.close()
+    this.#socket.close()
     this.#writeStream.close()
 
     await Promise.all([
       new Promise(resolve => {
-        this.#instance.once('close', resolve)
+        this.#socket.once('close', resolve)
       }),
       new Promise(resolve => {
         this.#writeStream.once('close', resolve)
@@ -156,12 +159,12 @@ class UDPLoggerServer extends EventEmitter {
   }
 
   async #initSocket () {
-    this.#instance = dgram.createSocket({ type: this.#type })
+    this.#socket = dgram.createSocket({ type: this.#type })
     this.#attachHandlers()
-    this.#instance.bind(this.#port)
+    this.#socket.bind(this.#port)
 
     await new Promise(resolve => {
-      this.#instance.once('listening', resolve)
+      this.#socket.once('listening', resolve)
     })
   }
 
@@ -182,16 +185,16 @@ class UDPLoggerServer extends EventEmitter {
   }
 
   #attachHandlers () {
-    this.#instance.on('close', this.#handleClose)
-    this.#instance.on('error', this.#handleError)
-    this.#instance.on('message', this.#handleMessage)
+    this.#socket.on('close', this.#handleClose)
+    this.#socket.on('error', this.#handleError)
+    this.#socket.on('message', this.#handleMessage)
     this.#writeStream.on('close', this.#handleFileClose)
   }
 
   #detachHandlers () {
-    this.#instance.off('close', this.#handleClose)
-    this.#instance.off('error', this.#handleError)
-    this.#instance.off('message', this.#handleMessage)
+    this.#socket.off('close', this.#handleClose)
+    this.#socket.off('error', this.#handleError)
+    this.#socket.off('message', this.#handleMessage)
     this.#writeStream.off('close', this.#handleFileClose)
   }
 
@@ -248,6 +251,7 @@ class UDPLoggerServer extends EventEmitter {
     this.#collector = []
 
     collector.sort(BUFFER_COMPARE_SORT_FUNCTION) // it will also sort by date
+
     let prevBuffer = collector[0]
     let body = [collector[0].subarray(ID_SIZE)]
 

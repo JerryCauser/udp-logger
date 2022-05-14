@@ -28,9 +28,9 @@ refreshCache()
 export function generateId () {
   if (cacheOffset >= CACHE_SIZE) refreshCache()
 
-  const res = Buffer.alloc(ID_SIZE)
+  const id = Buffer.alloc(ID_SIZE)
 
-  res.set([
+  id.set([
     CACHE_BUFFER[cacheOffset],
     CACHE_BUFFER[cacheOffset + 1],
     CACHE_BUFFER[cacheOffset + 2],
@@ -42,10 +42,10 @@ export function generateId () {
   cacheOffset += SLICE_SIZE
   incrementId = ++incrementId & INCREMENTAL_EDGE
 
-  res.writeUIntBE(Date.now(), 0, DATE_SIZE)
-  res.writeUIntBE(incrementId, DATE_SIZE, INCREMENTAL_SIZE)
+  id.writeUIntBE(Date.now(), 0, DATE_SIZE)
+  id.writeUIntBE(incrementId, DATE_SIZE, INCREMENTAL_SIZE)
 
-  return res
+  return id
 }
 
 /**
