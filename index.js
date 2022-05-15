@@ -1,9 +1,5 @@
-import UDPLoggerServer2 from 'src/server2.js'
-export { default as UDPLoggerServer } from './src/server.js'
+export { default as UDPLoggerSocket } from './src/socket.js'
 export { default as UDPLoggerClient } from './src/client.js'
+export { default as UDPLoggerServer } from './src/server.js'
 
-const a = new UDPLoggerServer2({
-
-})
-
-export default a
+export * as constants from './src/constants.js'

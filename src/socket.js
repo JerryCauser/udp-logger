@@ -1,46 +1,37 @@
 import EventEmitter from 'node:events'
 import crypto from 'node:crypto'
 import dgram from 'node:dgram'
-import util from 'node:util'
-import v8 from 'node:v8'
 import { Buffer } from 'node:buffer'
-import { ID_SIZE, parseId, BUFFER_COMPARE_SORT_FUNCTION } from './identifier.js'
-
-export const DEFAULT_FORMAT_OPTIONS = {
-  depth: null,
-  maxStringLength: null,
-  maxArrayLength: null,
-  breakLength: 80
-}
-
-/**
- * @param {Buffer} buffer
- * @returns {string}
- */
-export const DEFAULT_SERIALIZER = (buffer) => {
-  const data = v8.deserialize(buffer)
-  data.unshift(DEFAULT_FORMAT_OPTIONS)
-
-  return util.formatWithOptions.apply(util, data)
-}
+import { Readable } from 'node:stream'
+import {
+  ID_SIZE,
+  parseId,
+  BUFFER_COMPARE_SORT_FUNCTION
+} from './identifier.js'
+import { DEFAULT_MESSAGE_FORMATTER, DEFAULT_SERIALIZER } from './constants.js'
 
 /**
- * @param {object} options={}
- * @param {string} [options.type='udp4']
- * @param {number} [options.port=44002]
- * @param {string} [options.encoding='utf8']
- * @param {object} [options.decryption]
- * @param {object} [options.decryption.algorithm]
- * @param {object} [options.decryption.secret]
- * @param {number} [options.collectorInterval=1000]
- * @param {function} [options.deserializer]
+ * @typedef {object} UDPLoggerSocketOptions
+ * @property {string} [options.type='udp4']
+ * @property {number} [options.port=44002]
+ * @property {object} [options.decryption]
+ * @property {object} [options.decryption.algorithm]
+ * @property {object} [options.decryption.secret]
+ * @property {number} [options.collectorInterval=1000]
+ * @property {function} [options.deserializer]
+ * @property {function} [options.formatMessage]
+ *
+ * @typedef {ReadableOptions & UDPLoggerSocketOptions}
  */
-class UDPLoggerSocket extends EventEmitter {
+
+/**
+ * @param {UDPLoggerSocketOptions} [options={}]
+ * @constructor
+ */
+class UDPLoggerSocket extends Readable {
   #port
   #address
   #type
-
-  #encoding
 
   #decryptionAlgorithm
   #decryptionSecret
@@ -48,79 +39,148 @@ class UDPLoggerSocket extends EventEmitter {
   #socket
 
   #deserializer
+  #formatMessage
 
   #collector = []
   #collectorIntervalId
   #collectorIntervalTime
 
+  #allowPush = true
+  #messages = []
+
+  #handleSocketMessage = () => {}
+
   constructor ({
     type = 'udp4',
     port = 44002,
-    encoding = 'utf8',
     decryption,
     collectorInterval = 1000,
-    deserializer = DEFAULT_SERIALIZER
+    deserializer = DEFAULT_SERIALIZER,
+    formatMessage = DEFAULT_MESSAGE_FORMATTER,
+    ...options
   } = {}) {
-    super()
+    super(options)
 
     this.#port = port
-    this.#encoding = encoding
     this.#deserializer = deserializer
+    this.#formatMessage = formatMessage
     this.#type = type
     this.#decryptionSecret = decryption?.secret
-    this.#decryptionAlgorithm = decryption?.algorithm ?? (this.#decryptionSecret ? 'aes-256-ctr' : undefined)
+    this.#decryptionAlgorithm =
+      decryption?.algorithm ??
+      (this.#decryptionSecret ? 'aes-256-ctr' : undefined)
 
     this.#collectorIntervalTime = collectorInterval
 
-    this.#handleMessage = this.#handlePlainMessage
+    this.#handleSocketMessage = this.#handlePlainMessage
 
     if (this.#decryptionSecret) {
       this.#decryptionSecret = Buffer.from(this.#decryptionSecret)
 
-      this.#handleMessage = this.#handleEncryptedMessage
+      this.#handleSocketMessage = this.#handleEncryptedMessage
     }
   }
 
-  get address () { return this.#address }
-  get port () { return this.#port }
+  _construct (callback) {
+    this.#start()
+      .then(() => callback(null))
+      .catch(callback)
+  }
 
-  /**
-   * @returns {Promise<UDPLoggerSocket>}
-   */
-  async start () {
+  _destroy (error, callback) {
+    if (error) {
+      this.emit('error', error)
+    }
+
+    this.#stop()
+      .then(() => callback(null))
+      .catch(callback)
+  }
+
+  _read (size) {
+    if (this.#messages.length > 0) {
+      this.push(this.#messages.shift())
+    }
+
+    this.#allowPush = this.#messages.length === 0
+  }
+
+  get address () {
+    return this.#address
+  }
+
+  get port () {
+    return this.#port
+  }
+
+  async #start () {
     this.#collector = []
-    this.#collectorIntervalId = setInterval(this.#collectorIntervalFunction, this.#collectorIntervalTime)
+    this.#collectorIntervalId = setInterval(
+      this.#collectorIntervalFunction,
+      this.#collectorIntervalTime
+    )
     await this.#initSocket()
     this.#attachHandlers()
 
     this.#address = this.#socket.address().address
     this.#port = this.#socket.address().port
 
-    this.emit('start:socket', this)
-
-    return this
+    this.emit('socket:ready')
   }
 
-  /**
-   * @returns {Promise<UDPLoggerSocket>}
-   */
-  async stop () {
+  async #stop () {
     clearInterval(this.#collectorIntervalId)
+    this.#collector = []
+
+    if (!this.#socket) {
+      return
+    }
+
     this.#detachHandlers()
     this.#socket.close()
 
     await EventEmitter.once(this.#socket, 'close')
-
-    this.#collector = []
-
-    return this
   }
 
   async #initSocket () {
     this.#socket = dgram.createSocket({ type: this.#type })
     this.#socket.bind(this.#port)
 
-    await EventEmitter.once(this.#socket, 'listening')
+    const error = await Promise.race([
+      EventEmitter.once(this.#socket, 'listening'),
+      EventEmitter.once(this.#socket, 'error')
+    ])
+
+    if (error instanceof Error) {
+      this.destroy(error)
+    }
+  }
+
+  #attachHandlers () {
+    this.#socket.on('close', this.#handleSocketClose)
+    this.#socket.on('error', this.#handleSocketError)
+    this.#socket.on('message', this.#handleSocketMessage)
+  }
+
+  #detachHandlers () {
+    this.#socket.off('close', this.#handleSocketClose)
+    this.#socket.off('error', this.#handleSocketError)
+    this.#socket.off('message', this.#handleSocketMessage)
+  }
+
+  #handleSocketClose = () => {
+    this.emit('socket:close')
+  }
+
+  #handleSocketError = (error) => {
+    this.destroy(error)
+  }
+
+  /**
+   * @param {Buffer} buffer
+   */
+  #handlePlainMessage = (buffer) => {
+    this.#collector.push(buffer)
   }
 
   /**
@@ -131,44 +191,19 @@ class UDPLoggerSocket extends EventEmitter {
     const iv = buffer.subarray(0, 16)
     const payload = buffer.subarray(16)
 
-    const decipher = crypto.createDecipheriv(this.#decryptionAlgorithm, this.#decryptionSecret, iv)
+    const decipher = crypto.createDecipheriv(
+      this.#decryptionAlgorithm,
+      this.#decryptionSecret,
+      iv
+    )
     const beginChunk = decipher.update(payload)
     const finalChunk = decipher.final()
-    const result = Buffer.concat([beginChunk, finalChunk], beginChunk.length + finalChunk.length)
+    const result = Buffer.concat(
+      [beginChunk, finalChunk],
+      beginChunk.length + finalChunk.length
+    )
 
     return result
-  }
-
-  #attachHandlers () {
-    this.#socket.on('close', this.#handleClose)
-    this.#socket.on('error', this.#handleError)
-    this.#socket.on('message', this.#handleMessage)
-  }
-
-  #detachHandlers () {
-    this.#socket.off('close', this.#handleClose)
-    this.#socket.off('error', this.#handleError)
-    this.#socket.off('message', this.#handleMessage)
-  }
-
-  #handleClose = () => {
-    this.emit('close')
-  }
-
-  #handleError = (error) => {
-    this.emit('error', error)
-    this.stop().catch(error => this.emit('error', error))
-  }
-
-  #handleMessage = () => {
-    throw new Error('handle_message_not_attached')
-  }
-
-  /**
-   * @param {Buffer} buffer
-   */
-  #handlePlainMessage = (buffer) => {
-    this.#collector.push(buffer)
   }
 
   /**
@@ -193,7 +228,8 @@ class UDPLoggerSocket extends EventEmitter {
       for (let i = 1; i < collector.length; ++i) {
         const buffer = collector[i]
 
-        if (buffer.compare(prevBuffer, 0, ID_SIZE, 0, ID_SIZE) !== 0) { // if current id NOT equal to previous
+        if (buffer.compare(prevBuffer, 0, ID_SIZE, 0, ID_SIZE) !== 0) {
+          // if current id NOT equal to previous
           this.#compileMessage(prevBuffer, body)
 
           prevBuffer = buffer
@@ -212,10 +248,45 @@ class UDPLoggerSocket extends EventEmitter {
    * @param {Buffer[]} body
    */
   #compileMessage (meta, body) {
-    const deserializedBody = this.#deserializer(body.length === 1 ? body[0] : Buffer.concat(body))
-    const date = parseId(meta.subarray(0, ID_SIZE))[0]
+    try {
+      this.#compileMessageUnsafe(meta, body)
+    } catch (error) {
+      const originMessage = error.message
 
-    this.emit('message', { date, message: deserializedBody })
+      error.message = 'compile_message_error'
+      error.ctx = {
+        originMessage,
+        meta,
+        body
+      }
+
+      this.emit('error', error)
+    }
+  }
+
+  /**
+   * @param {Buffer} meta
+   * @param {Buffer[]} body
+   */
+  #compileMessageUnsafe (meta, body) {
+    const deserializedBody = this.#deserializer(
+      body.length === 1 ? body[0] : Buffer.concat(body)
+    )
+    const parsedId = parseId(meta.subarray(0, ID_SIZE))
+
+    const message = this.#formatMessage(
+      deserializedBody,
+      parsedId[0],
+      parsedId[1]
+    )
+
+    if (this.#allowPush) {
+      this.#allowPush = this.push(message)
+    } else {
+      this.#messages.push(message)
+    }
+
+    this.emit('socket:message', message)
   }
 }
 
