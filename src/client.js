@@ -9,15 +9,20 @@ const IV_SIZE = 16
 export const DEFAULT_SERIALIZER = v8.serialize
 
 /**
- * @param {object} [options={}]
- * @param {string} [options.type='udp4']
- * @param {number} [options.port=44002]
- * @param {string} [options.host=('127.0.0.1'|'::1')]
- * @param {number} [options.packetSize=1280]
- * @param {object} [options.encryption]
- * @param {string} [options.encryption.algorithm='aes-256-ctr']
- * @param {string} options.encryption.secret
- * @param {function} [options.serializer=v8.serialize]
+ * @typedef {object} UDPLoggerClientOptions
+ * @property {string} [options.type='udp4']
+ * @property {number} [options.port=44002]
+ * @property {string} [options.host=('127.0.0.1'|'::1')]
+ * @property {number} [options.packetSize=1280]
+ * @property {object} [options.encryption]
+ * @property {string} [options.encryption.algorithm='aes-256-ctr']
+ * @property {string} options.encryption.secret
+ * @property {function} [options.serializer=v8.serialize]
+ */
+
+/**
+ * @param {UDPLoggerClientOptions} [options={}]
+ * @constructor
  */
 class UDPLoggerClient {
   #port
@@ -46,7 +51,9 @@ class UDPLoggerClient {
     this.#serializer = serializer
 
     this.#encryptionSecret = encryption?.secret
-    this.#encryptionAlgorithm = encryption?.algorithm ?? (this.#encryptionSecret ? 'aes-256-ctr' : undefined)
+    this.#encryptionAlgorithm =
+      encryption?.algorithm ??
+      (this.#encryptionSecret ? 'aes-256-ctr' : undefined)
 
     if (this.#encryptionSecret) {
       this.#packetSize = packetSize - IV_SIZE
@@ -62,10 +69,17 @@ class UDPLoggerClient {
     const iv = crypto.randomBytes(IV_SIZE).subarray(0, IV_SIZE)
     const payload = Buffer.from(message)
 
-    const cipher = crypto.createCipheriv(this.#encryptionAlgorithm, this.#encryptionSecret, iv)
+    const cipher = crypto.createCipheriv(
+      this.#encryptionAlgorithm,
+      this.#encryptionSecret,
+      iv
+    )
     const beginChunk = cipher.update(payload)
     const finalChunk = cipher.final()
-    const result = Buffer.concat([iv, beginChunk, finalChunk], IV_SIZE + beginChunk.length + finalChunk.length)
+    const result = Buffer.concat(
+      [iv, beginChunk, finalChunk],
+      IV_SIZE + beginChunk.length + finalChunk.length
+    )
 
     return result
   }
@@ -84,7 +98,10 @@ class UDPLoggerClient {
    */
   send = (payload, id = generateId()) => {
     for (let i = 0; i < payload.length; i += this.#packetSize) {
-      let chunk = this.#markChunk(id, payload.subarray(i, i + this.#packetSize))
+      let chunk = this.#markChunk(
+        id,
+        payload.subarray(i, i + this.#packetSize)
+      )
 
       if (this.#encryptionAlgorithm !== undefined) {
         chunk = this.#encryptMessage(chunk)
