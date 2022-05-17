@@ -1,4 +1,5 @@
 export { default as UDPLoggerSocket } from './src/socket.js'
+export { default as UDPLoggerWriter } from './src/writer.js'
 export { default as UDPLoggerClient } from './src/client.js'
 export { default as UDPLoggerServer } from './src/server.js'
 
