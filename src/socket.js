@@ -8,7 +8,7 @@ import {
   parseId,
   BUFFER_COMPARE_SORT_FUNCTION
 } from './identifier.js'
-import { DEFAULT_MESSAGE_FORMATTER, DEFAULT_SERIALIZER } from './constants.js'
+import { DEFAULT_PORT, DEFAULT_MESSAGE_FORMATTER, DEFAULT_SERIALIZER } from './constants.js'
 
 /**
  * @typedef {object} UDPLoggerSocketOptions
@@ -29,6 +29,7 @@ import { DEFAULT_MESSAGE_FORMATTER, DEFAULT_SERIALIZER } from './constants.js'
  * @constructor
  */
 class UDPLoggerSocket extends Readable {
+  #host
   #port
   #address
   #type
@@ -52,7 +53,8 @@ class UDPLoggerSocket extends Readable {
 
   constructor ({
     type = 'udp4',
-    port = 44002,
+    port = DEFAULT_PORT,
+    host = type === 'udp4' ? '127.0.0.1' : '::1',
     decryption,
     collectorInterval = 1000,
     deserializer = DEFAULT_SERIALIZER,
@@ -93,16 +95,36 @@ class UDPLoggerSocket extends Readable {
     }
 
     this.#stop()
-      .then(() => callback(null))
+      .then(() => callback(error))
       .catch(callback)
   }
 
   _read (size) {
-    if (this.#messages.length > 0) {
-      this.push(this.#messages.shift())
-    }
+    this.#sendBufferedMessages()
 
     this.#allowPush = this.#messages.length === 0
+  }
+
+  /**
+   * @param {*} message
+   */
+  #addMessage (message) {
+    if (this.#allowPush) {
+      this.#allowPush = this.push(message)
+    } else {
+      this.#messages.push(message)
+    }
+  }
+
+  #sendBufferedMessages () {
+    if (this.#messages.length === 0) return
+
+    for (let i = 0; i < this.#messages.length; ++i) {
+      if (!this.push(this.#messages[i])) {
+        this.#messages.splice(0, i + 1)
+        break
+      }
+    }
   }
 
   get address () {
@@ -144,7 +166,7 @@ class UDPLoggerSocket extends Readable {
 
   async #initSocket () {
     this.#socket = dgram.createSocket({ type: this.#type })
-    this.#socket.bind(this.#port)
+    this.#socket.bind(this.#port, this.#host)
 
     const error = await Promise.race([
       EventEmitter.once(this.#socket, 'listening'),
@@ -198,12 +220,10 @@ class UDPLoggerSocket extends Readable {
     )
     const beginChunk = decipher.update(payload)
     const finalChunk = decipher.final()
-    const result = Buffer.concat(
+    return Buffer.concat(
       [beginChunk, finalChunk],
       beginChunk.length + finalChunk.length
     )
-
-    return result
   }
 
   /**
@@ -260,7 +280,7 @@ class UDPLoggerSocket extends Readable {
         body
       }
 
-      this.emit('error', error)
+      this.emit('warning', error)
     }
   }
 
@@ -280,11 +300,7 @@ class UDPLoggerSocket extends Readable {
       parsedId[1]
     )
 
-    if (this.#allowPush) {
-      this.#allowPush = this.push(message)
-    } else {
-      this.#messages.push(message)
-    }
+    this.#addMessage(message)
 
     this.emit('socket:message', message)
   }
