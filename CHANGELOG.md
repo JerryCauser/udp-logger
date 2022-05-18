@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.4.0](https://github.com/JerryCauser/udp-logger/compare/v0.3.0...v0.4.0) (2022-05-18)
+
+
+### Features
+
+* improve buffering messages in socket ([6d5f6d2](https://github.com/JerryCauser/udp-logger/commit/6d5f6d25c415f924514f0bbed11111c2d255dd38))
+
+
+### Bug Fixes
+
+* server error on end ([21beb4c](https://github.com/JerryCauser/udp-logger/commit/21beb4ca666ff6f47c850d8726d1dc71e2d93c35))
+
 ## [0.3.0](https://github.com/JerryCauser/udp-logger/compare/v0.2.0...v0.3.0) (2022-05-17)
 
 
