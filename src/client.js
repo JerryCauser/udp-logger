@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import dgram from 'node:dgram'
 import v8 from 'node:v8'
 import { Buffer } from 'node:buffer'
+import { EventEmitter, once } from 'node:events'
 import { generateId, ID_SIZE } from './identifier.js'
 
 const IV_SIZE = 16
@@ -24,7 +25,7 @@ export const DEFAULT_SERIALIZER = v8.serialize
  * @param {UDPLoggerClientOptions} [options={}]
  * @constructor
  */
-class UDPLoggerClient {
+class UDPLoggerClient extends EventEmitter {
   #port
   #host
   #type
@@ -35,14 +36,20 @@ class UDPLoggerClient {
   #encryptionAlgorithm
   #encryptionSecret
 
+  #connecting
+  #socket
+
   constructor ({
     type = 'udp4',
     port = 44002,
     host = type === 'udp4' ? '127.0.0.1' : '::1',
     packetSize = 1280,
     encryption,
-    serializer = DEFAULT_SERIALIZER
+    serializer = DEFAULT_SERIALIZER,
+    ...options
   } = {}) {
+    super(options)
+
     this.#port = port
     this.#host = host
     this.#type = type
@@ -59,6 +66,13 @@ class UDPLoggerClient {
       this.#packetSize = packetSize - IV_SIZE
       this.#encryptionSecret = Buffer.from(this.#encryptionSecret)
     }
+
+    this.#socket = dgram.createSocket(this.#type)
+    this.#connecting = once(this.#socket, 'connect')
+    this.#socket.connect(this.#port, this.#host, () => {
+      this.log = this.#clearLog
+      this.emit('ready')
+    })
   }
 
   /**
@@ -76,27 +90,35 @@ class UDPLoggerClient {
     )
     const beginChunk = cipher.update(payload)
     const finalChunk = cipher.final()
-    const result = Buffer.concat(
+
+    return Buffer.concat(
       [iv, beginChunk, finalChunk],
       IV_SIZE + beginChunk.length + finalChunk.length
     )
-
-    return result
   }
 
   /**
    * @param {*} args
    */
   log = (...args) => {
-    const id = generateId()
-    this.send(this.#serializer(args), id)
+    this.#connecting.then(() => this.#clearLog(...args))
+  }
+
+  /**
+   * @param {*} args
+   */
+  #clearLog = (...args) => {
+    setImmediate(() => {
+      const id = generateId()
+      this.#send(this.#serializer(args), id)
+    })
   }
 
   /**
    * @param {Buffer} payload
    * @param {Buffer} id
    */
-  send = (payload, id = generateId()) => {
+  #send = (payload, id = generateId()) => {
     for (let i = 0; i < payload.length; i += this.#packetSize) {
       let chunk = this.#markChunk(
         id,
@@ -115,11 +137,7 @@ class UDPLoggerClient {
    * @param {Buffer} payload
    */
   #sendChunk = (payload) => {
-    const client = dgram.createSocket(this.#type)
-    client.send(payload, this.#port, this.#host, (err) => {
-      if (err) console.error(err)
-      client.close()
-    })
+    this.#socket.send(payload)
   }
 
   /**
