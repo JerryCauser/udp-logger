@@ -2,12 +2,16 @@ import v8 from 'node:v8'
 import util from 'node:util'
 
 /**
- * @param {string|Buffer|Uint8Array} msg
+ * @param {*} data
  * @param {Date} date
+ * @param {number|string} id
  * @returns {string|Buffer|Uint8Array}
  */
-export const DEFAULT_MESSAGE_FORMATTER = (msg, date) => {
-  return `${date.toISOString()}|${msg}\n`
+export const DEFAULT_MESSAGE_FORMATTER = (data, date, id) => {
+  data.unshift(DEFAULT_FORMAT_OPTIONS)
+  data = util.formatWithOptions.apply(util, data)
+
+  return `${date.toISOString()}|${id}|${data}\n`
 }
 
 const DEFAULT_FORMAT_OPTIONS = {
@@ -19,11 +23,10 @@ const DEFAULT_FORMAT_OPTIONS = {
 
 /**
  * @param {Buffer} buffer
- * @returns {string|Buffer|Uint8Array}
+ * @returns {*}
  */
 export const DEFAULT_SERIALIZER = (buffer) => {
-  const data = v8.deserialize(buffer)
-  data.unshift(DEFAULT_FORMAT_OPTIONS)
-
-  return util.formatWithOptions.apply(util, data)
+  return v8.deserialize(buffer)
 }
+
+export const DEFAULT_PORT = 44002
