@@ -3,9 +3,8 @@ import dgram from 'node:dgram'
 import v8 from 'node:v8'
 import { Buffer } from 'node:buffer'
 import { EventEmitter, once } from 'node:events'
-import { generateId, ID_SIZE } from './identifier.js'
-
-const IV_SIZE = 16
+import { generateId, setChunkMetaInfo, ID_SIZE } from './identifier.js'
+import { IV_SIZE } from './constants.js'
 
 export const DEFAULT_SERIALIZER = v8.serialize
 
@@ -14,7 +13,7 @@ export const DEFAULT_SERIALIZER = v8.serialize
  * @property {string} [options.type='udp4']
  * @property {number} [options.port=44002]
  * @property {string} [options.host=('127.0.0.1'|'::1')]
- * @property {number} [options.packetSize=1280]
+ * @property {number} [options.packetSize=1280] - in bytes
  * @property {object} [options.encryption]
  * @property {string} [options.encryption.algorithm='aes-256-ctr']
  * @property {string} options.encryption.secret
@@ -31,9 +30,10 @@ class UDPLoggerClient extends EventEmitter {
   #type
   #packetSize
 
+  #isAsync
   #serializer
 
-  #encryptionAlgorithm
+  #encryptionAlgorithm // TODO make it by function
   #encryptionSecret
 
   #connecting
@@ -44,6 +44,7 @@ class UDPLoggerClient extends EventEmitter {
     port = 44002,
     host = type === 'udp4' ? '127.0.0.1' : '::1',
     packetSize = 1280,
+    isAsync = false,
     encryption,
     serializer = DEFAULT_SERIALIZER,
     ...options
@@ -55,6 +56,7 @@ class UDPLoggerClient extends EventEmitter {
     this.#type = type
     this.#packetSize = packetSize - ID_SIZE
 
+    this.#isAsync = isAsync
     this.#serializer = serializer
 
     this.#encryptionSecret = encryption?.secret
@@ -70,7 +72,7 @@ class UDPLoggerClient extends EventEmitter {
     this.#socket = dgram.createSocket(this.#type)
     this.#connecting = once(this.#socket, 'connect')
     this.#socket.connect(this.#port, this.#host, () => {
-      this.log = this.#clearLog
+      this.log = isAsync ? this.#asyncLog : this.#syncLog
       this.emit('ready')
     })
   }
@@ -101,27 +103,37 @@ class UDPLoggerClient extends EventEmitter {
    * @param {*} args
    */
   log = (...args) => {
-    this.#connecting.then(() => this.#clearLog(...args))
+    this.#connecting.then(() =>
+      this.#isAsync ? this.#asyncLog(...args) : this.#syncLog(...args)
+    )
   }
 
   /**
    * @param {*} args
    */
-  #clearLog = (...args) => {
-    setImmediate(() => {
-      const id = generateId()
-      this.#send(this.#serializer(args), id)
-    })
+  #syncLog = (...args) => {
+    this.#send(this.#serializer(args), generateId())
+  }
+
+  /**
+   * @param {*} args
+   */
+  #asyncLog = (...args) => {
+    setImmediate(this.#syncLog, ...args)
   }
 
   /**
    * @param {Buffer} payload
    * @param {Buffer} id
    */
-  #send = (payload, id = generateId()) => {
+  #send = (payload, id) => {
+    const total = Math.ceil(payload.length / this.#packetSize)
+
     for (let i = 0; i < payload.length; i += this.#packetSize) {
       let chunk = this.#markChunk(
         id,
+        total,
+        i,
         payload.subarray(i, i + this.#packetSize)
       )
 
@@ -142,13 +154,16 @@ class UDPLoggerClient extends EventEmitter {
 
   /**
    * @param {Buffer} id
+   * @param {number} total
+   * @param {number} index
    * @param {Buffer} chunk
    * @returns {Buffer}
    */
-  #markChunk (id, chunk) {
+  #markChunk (id, total, index, chunk) {
     const marked = Buffer.alloc(chunk.length + ID_SIZE)
 
     marked.set(id, 0)
+    setChunkMetaInfo(marked, total, index)
     marked.set(chunk, ID_SIZE)
 
     return marked

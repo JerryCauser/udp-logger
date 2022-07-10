@@ -1,8 +1,15 @@
 import v8 from 'node:v8'
 import util from 'node:util'
 
+const DEFAULT_FORMAT_OPTIONS = {
+  depth: null,
+  maxStringLength: null,
+  maxArrayLength: null,
+  breakLength: 80
+}
+
 /**
- * @param {*} data
+ * @param {any} data
  * @param {Date} date
  * @param {number|string} id
  * @returns {string|Buffer|Uint8Array}
@@ -13,20 +20,11 @@ export const DEFAULT_MESSAGE_FORMATTER = (data, date, id) => {
 
   return `${date.toISOString()}|${id}|${data}\n`
 }
-
-const DEFAULT_FORMAT_OPTIONS = {
-  depth: null,
-  maxStringLength: null,
-  maxArrayLength: null,
-  breakLength: 80
-}
-
 /**
  * @param {Buffer} buffer
- * @returns {*}
+ * @returns {any}
  */
-export const DEFAULT_SERIALIZER = (buffer) => {
-  return v8.deserialize(buffer)
-}
+export const DEFAULT_DESERIALIZER = v8.deserialize
 
 export const DEFAULT_PORT = 44002
+export const IV_SIZE = 16

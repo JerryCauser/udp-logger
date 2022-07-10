@@ -3,30 +3,31 @@ import crypto from 'node:crypto'
 import dgram from 'node:dgram'
 import { Buffer } from 'node:buffer'
 import { Readable } from 'node:stream'
+import { ID_SIZE, parseId } from './identifier.js'
 import {
-  ID_SIZE,
-  parseId,
-  BUFFER_COMPARE_SORT_FUNCTION
-} from './identifier.js'
-import { DEFAULT_PORT, DEFAULT_MESSAGE_FORMATTER, DEFAULT_SERIALIZER } from './constants.js'
+  DEFAULT_PORT,
+  DEFAULT_MESSAGE_FORMATTER,
+  DEFAULT_DESERIALIZER,
+  IV_SIZE
+} from './constants.js'
 
 /**
  * @typedef {object} UDPLoggerSocketOptions
  * @property {string} [options.type='udp4']
  * @property {number} [options.port=44002]
  * @property {object} [options.decryption]
- * @property {object} [options.decryption.algorithm]
- * @property {object} [options.decryption.secret]
+ * @property {string} [options.decryption.algorithm]
+ * @property {string} [options.decryption.secret]
  * @property {number} [options.collectorInterval=1000]
- * @property {function} [options.deserializer]
- * @property {function} [options.formatMessage]
+ * @property {(Buffer) => any} [options.deserializer]
+ * @property {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} [options.formatMessage]
  *
  * @typedef {ReadableOptions & UDPLoggerSocketOptions}
  */
 
 /**
+ * @class
  * @param {UDPLoggerSocketOptions} [options={}]
- * @constructor
  */
 class UDPLoggerSocket extends Readable {
   #host
@@ -42,9 +43,12 @@ class UDPLoggerSocket extends Readable {
   #deserializer
   #formatMessage
 
-  #collector = []
-  #collectorIntervalId
-  #collectorIntervalTime
+  /** @type {Map<string, [logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string, logTotal:number]>} data */
+  #collector = new Map()
+
+  #gcIntervalId
+  #gcIntervalTime = 5000
+  #gcExpirationTime = 10000
 
   #allowPush = true
   #messages = []
@@ -56,8 +60,7 @@ class UDPLoggerSocket extends Readable {
     port = DEFAULT_PORT,
     host = type === 'udp4' ? '127.0.0.1' : '::1',
     decryption,
-    collectorInterval = 1000,
-    deserializer = DEFAULT_SERIALIZER,
+    deserializer = DEFAULT_DESERIALIZER,
     formatMessage = DEFAULT_MESSAGE_FORMATTER,
     ...options
   } = {}) {
@@ -71,8 +74,6 @@ class UDPLoggerSocket extends Readable {
     this.#decryptionAlgorithm =
       decryption?.algorithm ??
       (this.#decryptionSecret ? 'aes-256-ctr' : undefined)
-
-    this.#collectorIntervalTime = collectorInterval
 
     this.#handleSocketMessage = this.#handlePlainMessage
 
@@ -136,11 +137,8 @@ class UDPLoggerSocket extends Readable {
   }
 
   async #start () {
-    this.#collector = []
-    this.#collectorIntervalId = setInterval(
-      this.#collectorIntervalFunction,
-      this.#collectorIntervalTime
-    )
+    this.#collector.clear()
+    this.#gcIntervalId = setInterval(this.#gcFunction, this.#gcIntervalTime)
     await this.#initSocket()
     this.#attachHandlers()
 
@@ -151,8 +149,8 @@ class UDPLoggerSocket extends Readable {
   }
 
   async #stop () {
-    clearInterval(this.#collectorIntervalId)
-    this.#collector = []
+    clearInterval(this.#gcIntervalId)
+    this.#collector.clear()
 
     if (!this.#socket) {
       return
@@ -202,7 +200,20 @@ class UDPLoggerSocket extends Readable {
    * @param {Buffer} buffer
    */
   #handlePlainMessage = (buffer) => {
-    this.#collector.push(buffer)
+    const [date, id, total, index] = parseId(buffer.subarray(0, ID_SIZE))
+
+    /** @type {[logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string, logTotal:number]} */
+    let data = this.#collector.get(id)
+    if (!data) {
+      data = [new Map(), Date.now(), date, id, total]
+      this.#collector.set(id, data)
+    }
+
+    data[0].set(index, buffer.subarray(ID_SIZE))
+
+    if (data[0].size === total) {
+      this.#compileMessage(data[0], data[2], data[3])
+    }
   }
 
   /**
@@ -210,8 +221,9 @@ class UDPLoggerSocket extends Readable {
    * @returns {Buffer}
    */
   #decryptMessage (buffer) {
-    const iv = buffer.subarray(0, 16)
-    const payload = buffer.subarray(16)
+    // TODO move to another file and exclude from current code
+    const iv = buffer.subarray(0, IV_SIZE)
+    const payload = buffer.subarray(IV_SIZE)
 
     const decipher = crypto.createDecipheriv(
       this.#decryptionAlgorithm,
@@ -233,50 +245,33 @@ class UDPLoggerSocket extends Readable {
     return this.#handlePlainMessage(this.#decryptMessage(buffer))
   }
 
-  #collectorIntervalFunction = () => {
-    if (this.#collector.length === 0) return
+  #gcFunction = () => {
+    const dateNow = Date.now()
 
-    const collector = this.#collector
-    this.#collector = []
-
-    collector.sort(BUFFER_COMPARE_SORT_FUNCTION) // it will also sort by date
-
-    let prevBuffer = collector[0]
-    let body = [collector[0].subarray(ID_SIZE)]
-
-    if (collector.length > 1) {
-      for (let i = 1; i < collector.length; ++i) {
-        const buffer = collector[i]
-
-        if (buffer.compare(prevBuffer, 0, ID_SIZE, 0, ID_SIZE) !== 0) {
-          // if current id NOT equal to previous
-          this.#compileMessage(prevBuffer, body)
-
-          prevBuffer = buffer
-          body = []
-        }
-
-        body.push(buffer.subarray(ID_SIZE))
+    for (const [id, payload] of this.#collector) {
+      if (payload[1] + this.#gcExpirationTime < dateNow) {
+        this.#collector.delete(id)
+        this.emit('socket:missing', { id, date: payload[2] })
       }
     }
-
-    this.#compileMessage(prevBuffer, body)
   }
 
   /**
-   * @param {Buffer} meta
-   * @param {Buffer[]} body
+   * @param {Map<number, Buffer>} body
+   * @param {Date|number} date
+   * @param {string} id
    */
-  #compileMessage (meta, body) {
+  #compileMessage (body, date, id) {
     try {
-      this.#compileMessageUnsafe(meta, body)
+      this.#compileMessageUnsafe(body, date, id)
     } catch (error) {
       const originMessage = error.message
 
       error.message = 'compile_message_error'
       error.ctx = {
         originMessage,
-        meta,
+        date,
+        id,
         body
       }
 
@@ -285,20 +280,24 @@ class UDPLoggerSocket extends Readable {
   }
 
   /**
-   * @param {Buffer} meta
-   * @param {Buffer[]} body
+   * @param {Map<number, Buffer>} body
+   * @param {Date|number} date
+   * @param {string} id
    */
-  #compileMessageUnsafe (meta, body) {
-    const deserializedBody = this.#deserializer(
-      body.length === 1 ? body[0] : Buffer.concat(body)
-    )
-    const parsedId = parseId(meta.subarray(0, ID_SIZE))
+  #compileMessageUnsafe (body, date, id) {
+    let deserializedBody
 
-    const message = this.#formatMessage(
-      deserializedBody,
-      parsedId[0],
-      parsedId[1]
-    )
+    if (body.size === 1) {
+      deserializedBody = this.#deserializer([...body.values()][0])
+    } else {
+      const sortedBuffers = [...body.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map((n) => n[1])
+
+      deserializedBody = this.#deserializer(Buffer.concat(sortedBuffers))
+    }
+
+    const message = this.#formatMessage(deserializedBody, date, id)
 
     this.#addMessage(message)
 
