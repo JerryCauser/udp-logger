@@ -2,34 +2,8 @@ var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getOwnPropSymbols = Object.getOwnPropertySymbols;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __propIsEnum = Object.prototype.propertyIsEnumerable;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __spreadValues = (a, b) => {
-  for (var prop in b || (b = {}))
-    if (__hasOwnProp.call(b, prop))
-      __defNormalProp(a, prop, b[prop]);
-  if (__getOwnPropSymbols)
-    for (var prop of __getOwnPropSymbols(b)) {
-      if (__propIsEnum.call(b, prop))
-        __defNormalProp(a, prop, b[prop]);
-    }
-  return a;
-};
-var __objRest = (source, exclude) => {
-  var target = {};
-  for (var prop in source)
-    if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
-      target[prop] = source[prop];
-  if (source != null && __getOwnPropSymbols)
-    for (var prop of __getOwnPropSymbols(source)) {
-      if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
-        target[prop] = source[prop];
-    }
-  return target;
-};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -44,32 +18,6 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target, mod));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-var __publicField = (obj, key, value) => {
-  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-  return value;
-};
-var __accessCheck = (obj, member, msg) => {
-  if (!member.has(obj))
-    throw TypeError("Cannot " + msg);
-};
-var __privateGet = (obj, member, getter) => {
-  __accessCheck(obj, member, "read from private field");
-  return getter ? getter.call(obj) : member.get(obj);
-};
-var __privateAdd = (obj, member, value) => {
-  if (member.has(obj))
-    throw TypeError("Cannot add the same private member more than once");
-  member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
-};
-var __privateSet = (obj, member, value, setter) => {
-  __accessCheck(obj, member, "write to private field");
-  setter ? setter.call(obj, value) : member.set(obj, value);
-  return value;
-};
-var __privateMethod = (obj, member, method) => {
-  __accessCheck(obj, member, "access private method");
-  return method;
-};
 
 // index.js
 var udp_logger_exports = {};
@@ -77,29 +25,32 @@ __export(udp_logger_exports, {
   UDPLoggerClient: () => client_default,
   UDPLoggerServer: () => server_default,
   UDPLoggerSocket: () => socket_default,
+  UDPLoggerWriter: () => writer_default,
   constants: () => constants_exports
 });
 module.exports = __toCommonJS(udp_logger_exports);
 
 // src/socket.js
-var import_node_events = __toESM(require("events"), 1);
-var import_node_crypto2 = __toESM(require("crypto"), 1);
-var import_node_dgram = __toESM(require("dgram"), 1);
-var import_node_buffer2 = require("buffer");
-var import_node_stream = require("stream");
+var import_node_events = __toESM(require("node:events"), 1);
+var import_node_dgram = __toESM(require("node:dgram"), 1);
+var import_node_buffer3 = require("node:buffer");
+var import_node_stream = require("node:stream");
 
 // src/identifier.js
-var import_node_crypto = __toESM(require("crypto"), 1);
-var import_node_buffer = require("buffer");
-var ID_SIZE = 16;
+var import_node_crypto = __toESM(require("node:crypto"), 1);
+var import_node_buffer = require("node:buffer");
 var DATE_SIZE = 6;
 var INCREMENTAL_SIZE = 4;
 var INCREMENTAL_EDGE = import_node_buffer.Buffer.alloc(INCREMENTAL_SIZE).fill(255).readUIntBE(0, INCREMENTAL_SIZE);
 var TIME_META_SIZE = DATE_SIZE + INCREMENTAL_SIZE;
-var SLICE_SIZE = ID_SIZE - TIME_META_SIZE;
-var CACHE_SIZE = 2048 * SLICE_SIZE;
+var RANDOM_SIZE = 6;
+var SEED_SIZE = TIME_META_SIZE + RANDOM_SIZE;
+var COUNTER_TOTAL_SIZE = 3;
+var COUNTER_INDEX_SIZE = 3;
+var CHUNK_META_SIZE = COUNTER_TOTAL_SIZE + COUNTER_INDEX_SIZE;
+var ID_SIZE = SEED_SIZE + CHUNK_META_SIZE;
+var CACHE_SIZE = 2048 * RANDOM_SIZE;
 var CACHE_BUFFER = import_node_buffer.Buffer.alloc(CACHE_SIZE);
-var BUFFER_COMPARE_SORT_FUNCTION = (a, b) => a.compare(b, 0, TIME_META_SIZE, 0, TIME_META_SIZE);
 var incrementId = 0;
 var cacheOffset = 0;
 function refreshCache() {
@@ -119,413 +70,309 @@ function generateId() {
     CACHE_BUFFER[cacheOffset + 4],
     CACHE_BUFFER[cacheOffset + 5]
   ], TIME_META_SIZE);
-  cacheOffset += SLICE_SIZE;
+  cacheOffset += RANDOM_SIZE;
   incrementId = ++incrementId & INCREMENTAL_EDGE;
   id.writeUIntBE(Date.now(), 0, DATE_SIZE);
   id.writeUIntBE(incrementId, DATE_SIZE, INCREMENTAL_SIZE);
   return id;
 }
+var SEED_N_TOTAL_OFFSET = SEED_SIZE + COUNTER_TOTAL_SIZE;
+function setChunkMetaInfo(id, total, index) {
+  id.writeUIntBE(total, SEED_SIZE, COUNTER_TOTAL_SIZE);
+  id.writeUIntBE(index, SEED_N_TOTAL_OFFSET, COUNTER_INDEX_SIZE);
+}
 function parseId(buffer) {
   if (buffer.length !== ID_SIZE)
     throw new Error("id_size_not_valid");
-  const date = new Date(buffer.readUintBE(0, 6));
-  const id = buffer.toString("hex");
-  return [date, id];
+  const date = new Date(buffer.readUintBE(0, DATE_SIZE));
+  const id = buffer.subarray(0, SEED_SIZE).toString("hex");
+  const total = buffer.readUintBE(SEED_SIZE, COUNTER_TOTAL_SIZE);
+  const index = buffer.readUintBE(SEED_N_TOTAL_OFFSET, COUNTER_INDEX_SIZE);
+  return [date, id, total, index];
 }
 
 // src/constants.js
 var constants_exports = {};
 __export(constants_exports, {
+  DEFAULT_DECRYPT_FUNCTION: () => DEFAULT_DECRYPT_FUNCTION,
+  DEFAULT_DESERIALIZER: () => DEFAULT_DESERIALIZER,
+  DEFAULT_ENCRYPT_FUNCTION: () => DEFAULT_ENCRYPT_FUNCTION,
   DEFAULT_MESSAGE_FORMATTER: () => DEFAULT_MESSAGE_FORMATTER,
-  DEFAULT_SERIALIZER: () => DEFAULT_SERIALIZER
+  DEFAULT_PORT: () => DEFAULT_PORT,
+  DEFAULT_SERIALIZER: () => DEFAULT_SERIALIZER,
+  IV_SIZE: () => IV_SIZE
 });
-var import_node_v8 = __toESM(require("v8"), 1);
-var import_node_util = __toESM(require("util"), 1);
-var DEFAULT_MESSAGE_FORMATTER = (msg, date) => {
-  return `${date.toISOString()}|${msg}
-`;
-};
+var import_node_v8 = __toESM(require("node:v8"), 1);
+var import_node_util = __toESM(require("node:util"), 1);
+var import_node_crypto2 = __toESM(require("node:crypto"), 1);
+var import_node_buffer2 = require("node:buffer");
 var DEFAULT_FORMAT_OPTIONS = {
   depth: null,
   maxStringLength: null,
   maxArrayLength: null,
   breakLength: 80
 };
-var DEFAULT_SERIALIZER = (buffer) => {
-  const data = import_node_v8.default.deserialize(buffer);
+var DEFAULT_MESSAGE_FORMATTER = (data, date, id) => {
   data.unshift(DEFAULT_FORMAT_OPTIONS);
-  return import_node_util.default.formatWithOptions.apply(import_node_util.default, data);
+  data = import_node_util.default.formatWithOptions.apply(import_node_util.default, data);
+  return `${date.toISOString()}|${id}|${data}
+`;
+};
+var DEFAULT_DESERIALIZER = import_node_v8.default.deserialize;
+var DEFAULT_SERIALIZER = import_node_v8.default.serialize;
+var DEFAULT_PORT = 44002;
+var IV_SIZE = 16;
+var DEFAULT_ENCRYPTION = "aes-256-ctr";
+var DEFAULT_ENCRYPT_FUNCTION = (payload, secret) => {
+  const iv = import_node_crypto2.default.randomBytes(IV_SIZE).subarray(0, IV_SIZE);
+  const cipher = import_node_crypto2.default.createCipheriv(DEFAULT_ENCRYPTION, secret, iv);
+  const beginChunk = cipher.update(payload);
+  const finalChunk = cipher.final();
+  return import_node_buffer2.Buffer.concat([iv, beginChunk, finalChunk], IV_SIZE + beginChunk.length + finalChunk.length);
+};
+var DEFAULT_DECRYPT_FUNCTION = (buffer, secret) => {
+  const iv = buffer.subarray(0, IV_SIZE);
+  const payload = buffer.subarray(IV_SIZE);
+  const decipher = import_node_crypto2.default.createDecipheriv(DEFAULT_ENCRYPTION, secret, iv);
+  const beginChunk = decipher.update(payload);
+  const finalChunk = decipher.final();
+  return import_node_buffer2.Buffer.concat([beginChunk, finalChunk], beginChunk.length + finalChunk.length);
 };
 
 // src/socket.js
-var _port, _address, _type, _decryptionAlgorithm, _decryptionSecret, _socket, _deserializer, _formatMessage, _collector, _collectorIntervalId, _collectorIntervalTime, _allowPush, _messages, _handleSocketMessage, _start, start_fn, _stop, stop_fn, _initSocket, initSocket_fn, _attachHandlers, attachHandlers_fn, _detachHandlers, detachHandlers_fn, _handleSocketClose, _handleSocketError, _handlePlainMessage, _decryptMessage, decryptMessage_fn, _handleEncryptedMessage, _collectorIntervalFunction, _compileMessage, compileMessage_fn, _compileMessageUnsafe, compileMessageUnsafe_fn;
 var UDPLoggerSocket = class extends import_node_stream.Readable {
-  constructor(_a = {}) {
-    var _b = _a, {
-      type = "udp4",
-      port = 44002,
-      decryption,
-      collectorInterval = 1e3,
-      deserializer = DEFAULT_SERIALIZER,
-      formatMessage = DEFAULT_MESSAGE_FORMATTER
-    } = _b, options = __objRest(_b, [
-      "type",
-      "port",
-      "decryption",
-      "collectorInterval",
-      "deserializer",
-      "formatMessage"
-    ]);
-    var _a2;
+  #host;
+  #port;
+  #address;
+  #type;
+  #decryptionFunction;
+  #decryptionSecret;
+  #socket;
+  #deserializer;
+  #formatMessage;
+  #collector = /* @__PURE__ */ new Map();
+  #gcIntervalId;
+  #gcIntervalTime = 5e3;
+  #gcExpirationTime = 1e4;
+  #allowPush = true;
+  #messages = [];
+  #handleSocketMessage;
+  constructor({
+    type = "udp4",
+    port = DEFAULT_PORT,
+    host = type === "udp4" ? "127.0.0.1" : "::1",
+    decryption,
+    deserializer = DEFAULT_DESERIALIZER,
+    formatMessage = DEFAULT_MESSAGE_FORMATTER,
+    ...options
+  } = {}) {
     super(options);
-    __privateAdd(this, _start);
-    __privateAdd(this, _stop);
-    __privateAdd(this, _initSocket);
-    __privateAdd(this, _attachHandlers);
-    __privateAdd(this, _detachHandlers);
-    __privateAdd(this, _decryptMessage);
-    __privateAdd(this, _compileMessage);
-    __privateAdd(this, _compileMessageUnsafe);
-    __privateAdd(this, _port, void 0);
-    __privateAdd(this, _address, void 0);
-    __privateAdd(this, _type, void 0);
-    __privateAdd(this, _decryptionAlgorithm, void 0);
-    __privateAdd(this, _decryptionSecret, void 0);
-    __privateAdd(this, _socket, void 0);
-    __privateAdd(this, _deserializer, void 0);
-    __privateAdd(this, _formatMessage, void 0);
-    __privateAdd(this, _collector, []);
-    __privateAdd(this, _collectorIntervalId, void 0);
-    __privateAdd(this, _collectorIntervalTime, void 0);
-    __privateAdd(this, _allowPush, true);
-    __privateAdd(this, _messages, []);
-    __privateAdd(this, _handleSocketMessage, () => {
-    });
-    __privateAdd(this, _handleSocketClose, () => {
-      this.emit("socket:close");
-    });
-    __privateAdd(this, _handleSocketError, (error) => {
-      this.destroy(error);
-    });
-    __privateAdd(this, _handlePlainMessage, (buffer) => {
-      __privateGet(this, _collector).push(buffer);
-    });
-    __privateAdd(this, _handleEncryptedMessage, (buffer) => {
-      return __privateGet(this, _handlePlainMessage).call(this, __privateMethod(this, _decryptMessage, decryptMessage_fn).call(this, buffer));
-    });
-    __privateAdd(this, _collectorIntervalFunction, () => {
-      if (__privateGet(this, _collector).length === 0)
-        return;
-      const collector = __privateGet(this, _collector);
-      __privateSet(this, _collector, []);
-      collector.sort(BUFFER_COMPARE_SORT_FUNCTION);
-      let prevBuffer = collector[0];
-      let body = [collector[0].subarray(ID_SIZE)];
-      if (collector.length > 1) {
-        for (let i = 1; i < collector.length; ++i) {
-          const buffer = collector[i];
-          if (buffer.compare(prevBuffer, 0, ID_SIZE, 0, ID_SIZE) !== 0) {
-            __privateMethod(this, _compileMessage, compileMessage_fn).call(this, prevBuffer, body);
-            prevBuffer = buffer;
-            body = [];
-          }
-          body.push(buffer.subarray(ID_SIZE));
-        }
+    this.#port = port;
+    this.#deserializer = deserializer;
+    this.#formatMessage = formatMessage;
+    this.#type = type;
+    if (decryption) {
+      if (typeof decryption === "string") {
+        this.#decryptionSecret = import_node_buffer3.Buffer.from(decryption);
+        this.#decryptionFunction = (data) => DEFAULT_DECRYPT_FUNCTION(data, this.#decryptionSecret);
+      } else if (decryption instanceof Function) {
+        this.#decryptionFunction = decryption;
       }
-      __privateMethod(this, _compileMessage, compileMessage_fn).call(this, prevBuffer, body);
-    });
-    __privateSet(this, _port, port);
-    __privateSet(this, _deserializer, deserializer);
-    __privateSet(this, _formatMessage, formatMessage);
-    __privateSet(this, _type, type);
-    __privateSet(this, _decryptionSecret, decryption == null ? void 0 : decryption.secret);
-    __privateSet(this, _decryptionAlgorithm, (_a2 = decryption == null ? void 0 : decryption.algorithm) != null ? _a2 : __privateGet(this, _decryptionSecret) ? "aes-256-ctr" : void 0);
-    __privateSet(this, _collectorIntervalTime, collectorInterval);
-    __privateSet(this, _handleSocketMessage, __privateGet(this, _handlePlainMessage));
-    if (__privateGet(this, _decryptionSecret)) {
-      __privateSet(this, _decryptionSecret, import_node_buffer2.Buffer.from(__privateGet(this, _decryptionSecret)));
-      __privateSet(this, _handleSocketMessage, __privateGet(this, _handleEncryptedMessage));
+    }
+    this.#handleSocketMessage = this.#handlePlainMessage;
+    if (this.#decryptionFunction instanceof Function) {
+      this.#handleSocketMessage = this.#handleEncryptedMessage;
     }
   }
   _construct(callback) {
-    __privateMethod(this, _start, start_fn).call(this).then(() => callback(null)).catch(callback);
+    this.#start().then(() => callback(null)).catch(callback);
   }
   _destroy(error, callback) {
     if (error) {
       this.emit("error", error);
     }
-    __privateMethod(this, _stop, stop_fn).call(this).then(() => callback(null)).catch(callback);
+    this.#stop().then(() => callback(error)).catch(callback);
   }
   _read(size) {
-    if (__privateGet(this, _messages).length > 0) {
-      this.push(__privateGet(this, _messages).shift());
+    this.#sendBufferedMessages();
+    this.#allowPush = this.#messages.length === 0;
+  }
+  #addMessage(message) {
+    if (this.#allowPush) {
+      this.#allowPush = this.push(message);
+    } else {
+      this.#messages.push(message);
     }
-    __privateSet(this, _allowPush, __privateGet(this, _messages).length === 0);
+  }
+  #sendBufferedMessages() {
+    if (this.#messages.length === 0)
+      return;
+    for (let i = 0; i < this.#messages.length; ++i) {
+      if (!this.push(this.#messages[i])) {
+        this.#messages.splice(0, i + 1);
+        break;
+      }
+    }
   }
   get address() {
-    return __privateGet(this, _address);
+    return this.#address;
   }
   get port() {
-    return __privateGet(this, _port);
+    return this.#port;
   }
-};
-_port = new WeakMap();
-_address = new WeakMap();
-_type = new WeakMap();
-_decryptionAlgorithm = new WeakMap();
-_decryptionSecret = new WeakMap();
-_socket = new WeakMap();
-_deserializer = new WeakMap();
-_formatMessage = new WeakMap();
-_collector = new WeakMap();
-_collectorIntervalId = new WeakMap();
-_collectorIntervalTime = new WeakMap();
-_allowPush = new WeakMap();
-_messages = new WeakMap();
-_handleSocketMessage = new WeakMap();
-_start = new WeakSet();
-start_fn = async function() {
-  __privateSet(this, _collector, []);
-  __privateSet(this, _collectorIntervalId, setInterval(__privateGet(this, _collectorIntervalFunction), __privateGet(this, _collectorIntervalTime)));
-  await __privateMethod(this, _initSocket, initSocket_fn).call(this);
-  __privateMethod(this, _attachHandlers, attachHandlers_fn).call(this);
-  __privateSet(this, _address, __privateGet(this, _socket).address().address);
-  __privateSet(this, _port, __privateGet(this, _socket).address().port);
-  this.emit("socket:ready");
-};
-_stop = new WeakSet();
-stop_fn = async function() {
-  clearInterval(__privateGet(this, _collectorIntervalId));
-  __privateSet(this, _collector, []);
-  if (!__privateGet(this, _socket)) {
-    return;
+  async #start() {
+    this.#collector.clear();
+    this.#gcIntervalId = setInterval(this.#gcFunction, this.#gcIntervalTime);
+    await this.#initSocket();
+    this.#attachHandlers();
+    this.#address = this.#socket.address().address;
+    this.#port = this.#socket.address().port;
+    this.emit("socket:ready");
   }
-  __privateMethod(this, _detachHandlers, detachHandlers_fn).call(this);
-  __privateGet(this, _socket).close();
-  await import_node_events.default.once(__privateGet(this, _socket), "close");
-};
-_initSocket = new WeakSet();
-initSocket_fn = async function() {
-  __privateSet(this, _socket, import_node_dgram.default.createSocket({ type: __privateGet(this, _type) }));
-  __privateGet(this, _socket).bind(__privateGet(this, _port));
-  const error = await Promise.race([
-    import_node_events.default.once(__privateGet(this, _socket), "listening"),
-    import_node_events.default.once(__privateGet(this, _socket), "error")
-  ]);
-  if (error instanceof Error) {
+  async #stop() {
+    clearInterval(this.#gcIntervalId);
+    this.#collector.clear();
+    if (!this.#socket) {
+      return;
+    }
+    this.#detachHandlers();
+    this.#socket.close();
+    await import_node_events.default.once(this.#socket, "close");
+  }
+  async #initSocket() {
+    this.#socket = import_node_dgram.default.createSocket({ type: this.#type });
+    this.#socket.bind(this.#port, this.#host);
+    const error = await Promise.race([
+      import_node_events.default.once(this.#socket, "listening"),
+      import_node_events.default.once(this.#socket, "error")
+    ]);
+    if (error instanceof Error) {
+      this.destroy(error);
+    }
+  }
+  #attachHandlers() {
+    this.#socket.on("close", this.#handleSocketClose);
+    this.#socket.on("error", this.#handleSocketError);
+    this.#socket.on("message", this.#handleSocketMessage);
+  }
+  #detachHandlers() {
+    this.#socket.off("close", this.#handleSocketClose);
+    this.#socket.off("error", this.#handleSocketError);
+    this.#socket.off("message", this.#handleSocketMessage);
+  }
+  #handleSocketClose = () => {
+    this.emit("socket:close");
+  };
+  #handleSocketError = (error) => {
     this.destroy(error);
+  };
+  #handlePlainMessage = (buffer) => {
+    const [date, id, total, index] = parseId(buffer.subarray(0, ID_SIZE));
+    let data = this.#collector.get(id);
+    if (!data) {
+      data = [/* @__PURE__ */ new Map(), Date.now(), date, id, total];
+      this.#collector.set(id, data);
+    }
+    data[0].set(index, buffer.subarray(ID_SIZE));
+    if (data[0].size === total) {
+      this.#collector.delete(id);
+      this.#compileMessage(data[0], data[2], data[3]);
+    }
+  };
+  #handleEncryptedMessage = (buffer) => {
+    try {
+      return this.#handlePlainMessage(this.#decryptionFunction(buffer));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+  #gcFunction = () => {
+    const dateNow = Date.now();
+    for (const [id, payload] of this.#collector) {
+      if (payload[1] + this.#gcExpirationTime < dateNow) {
+        this.#collector.delete(id);
+        this.emit("socket:missing", { message: "missing data", id, date: payload[2] });
+      }
+    }
+  };
+  #compileMessage(body, date, id) {
+    try {
+      this.#compileMessageUnsafe(body, date, id);
+    } catch (error) {
+      const originMessage = error.message;
+      error.message = "compile_message_error";
+      error.ctx = {
+        originMessage,
+        date,
+        id,
+        body
+      };
+      this.emit("warning", error);
+    }
   }
-};
-_attachHandlers = new WeakSet();
-attachHandlers_fn = function() {
-  __privateGet(this, _socket).on("close", __privateGet(this, _handleSocketClose));
-  __privateGet(this, _socket).on("error", __privateGet(this, _handleSocketError));
-  __privateGet(this, _socket).on("message", __privateGet(this, _handleSocketMessage));
-};
-_detachHandlers = new WeakSet();
-detachHandlers_fn = function() {
-  __privateGet(this, _socket).off("close", __privateGet(this, _handleSocketClose));
-  __privateGet(this, _socket).off("error", __privateGet(this, _handleSocketError));
-  __privateGet(this, _socket).off("message", __privateGet(this, _handleSocketMessage));
-};
-_handleSocketClose = new WeakMap();
-_handleSocketError = new WeakMap();
-_handlePlainMessage = new WeakMap();
-_decryptMessage = new WeakSet();
-decryptMessage_fn = function(buffer) {
-  const iv = buffer.subarray(0, 16);
-  const payload = buffer.subarray(16);
-  const decipher = import_node_crypto2.default.createDecipheriv(__privateGet(this, _decryptionAlgorithm), __privateGet(this, _decryptionSecret), iv);
-  const beginChunk = decipher.update(payload);
-  const finalChunk = decipher.final();
-  const result = import_node_buffer2.Buffer.concat([beginChunk, finalChunk], beginChunk.length + finalChunk.length);
-  return result;
-};
-_handleEncryptedMessage = new WeakMap();
-_collectorIntervalFunction = new WeakMap();
-_compileMessage = new WeakSet();
-compileMessage_fn = function(meta, body) {
-  try {
-    __privateMethod(this, _compileMessageUnsafe, compileMessageUnsafe_fn).call(this, meta, body);
-  } catch (error) {
-    const originMessage = error.message;
-    error.message = "compile_message_error";
-    error.ctx = {
-      originMessage,
-      meta,
-      body
-    };
-    this.emit("error", error);
+  #compileMessageUnsafe(body, date, id) {
+    let deserializedBody;
+    if (body.size === 1) {
+      deserializedBody = this.#deserializer([...body.values()][0]);
+    } else {
+      const sortedBuffers = [...body.entries()].sort((a, b) => a[0] - b[0]).map((n) => n[1]);
+      deserializedBody = this.#deserializer(import_node_buffer3.Buffer.concat(sortedBuffers));
+    }
+    const message = this.#formatMessage(deserializedBody, date, id);
+    this.#addMessage(message);
+    this.emit("socket:message", message);
   }
-};
-_compileMessageUnsafe = new WeakSet();
-compileMessageUnsafe_fn = function(meta, body) {
-  const deserializedBody = __privateGet(this, _deserializer).call(this, body.length === 1 ? body[0] : import_node_buffer2.Buffer.concat(body));
-  const parsedId = parseId(meta.subarray(0, ID_SIZE));
-  const message = __privateGet(this, _formatMessage).call(this, deserializedBody, parsedId[0], parsedId[1]);
-  if (__privateGet(this, _allowPush)) {
-    __privateSet(this, _allowPush, this.push(message));
-  } else {
-    __privateGet(this, _messages).push(message);
-  }
-  this.emit("socket:message", message);
 };
 var socket_default = UDPLoggerSocket;
 
-// src/client.js
-var import_node_crypto3 = __toESM(require("crypto"), 1);
-var import_node_dgram2 = __toESM(require("dgram"), 1);
-var import_node_v82 = __toESM(require("v8"), 1);
-var import_node_buffer3 = require("buffer");
-var IV_SIZE = 16;
-var DEFAULT_SERIALIZER2 = import_node_v82.default.serialize;
-var _port2, _host, _type2, _packetSize, _serializer, _encryptionAlgorithm, _encryptionSecret, _encryptMessage, encryptMessage_fn, _sendChunk, _markChunk, markChunk_fn;
-var UDPLoggerClient = class {
-  constructor({
-    type = "udp4",
-    port = 44002,
-    host = type === "udp4" ? "127.0.0.1" : "::1",
-    packetSize = 1280,
-    encryption,
-    serializer = DEFAULT_SERIALIZER2
-  } = {}) {
-    __privateAdd(this, _encryptMessage);
-    __privateAdd(this, _markChunk);
-    __privateAdd(this, _port2, void 0);
-    __privateAdd(this, _host, void 0);
-    __privateAdd(this, _type2, void 0);
-    __privateAdd(this, _packetSize, void 0);
-    __privateAdd(this, _serializer, void 0);
-    __privateAdd(this, _encryptionAlgorithm, void 0);
-    __privateAdd(this, _encryptionSecret, void 0);
-    __publicField(this, "log", (...args) => {
-      const id = generateId();
-      this.send(__privateGet(this, _serializer).call(this, args), id);
-    });
-    __publicField(this, "send", (payload, id = generateId()) => {
-      for (let i = 0; i < payload.length; i += __privateGet(this, _packetSize)) {
-        let chunk = __privateMethod(this, _markChunk, markChunk_fn).call(this, id, payload.subarray(i, i + __privateGet(this, _packetSize)));
-        if (__privateGet(this, _encryptionAlgorithm) !== void 0) {
-          chunk = __privateMethod(this, _encryptMessage, encryptMessage_fn).call(this, chunk);
-        }
-        __privateGet(this, _sendChunk).call(this, chunk);
-      }
-    });
-    __privateAdd(this, _sendChunk, (payload) => {
-      const client = import_node_dgram2.default.createSocket(__privateGet(this, _type2));
-      client.send(payload, __privateGet(this, _port2), __privateGet(this, _host), (err) => {
-        if (err)
-          console.error(err);
-        client.close();
-      });
-    });
-    var _a;
-    __privateSet(this, _port2, port);
-    __privateSet(this, _host, host);
-    __privateSet(this, _type2, type);
-    __privateSet(this, _packetSize, packetSize - ID_SIZE);
-    __privateSet(this, _serializer, serializer);
-    __privateSet(this, _encryptionSecret, encryption == null ? void 0 : encryption.secret);
-    __privateSet(this, _encryptionAlgorithm, (_a = encryption == null ? void 0 : encryption.algorithm) != null ? _a : __privateGet(this, _encryptionSecret) ? "aes-256-ctr" : void 0);
-    if (__privateGet(this, _encryptionSecret)) {
-      __privateSet(this, _packetSize, packetSize - IV_SIZE);
-      __privateSet(this, _encryptionSecret, import_node_buffer3.Buffer.from(__privateGet(this, _encryptionSecret)));
-    }
-  }
-};
-_port2 = new WeakMap();
-_host = new WeakMap();
-_type2 = new WeakMap();
-_packetSize = new WeakMap();
-_serializer = new WeakMap();
-_encryptionAlgorithm = new WeakMap();
-_encryptionSecret = new WeakMap();
-_encryptMessage = new WeakSet();
-encryptMessage_fn = function(message) {
-  const iv = import_node_crypto3.default.randomBytes(IV_SIZE).subarray(0, IV_SIZE);
-  const payload = import_node_buffer3.Buffer.from(message);
-  const cipher = import_node_crypto3.default.createCipheriv(__privateGet(this, _encryptionAlgorithm), __privateGet(this, _encryptionSecret), iv);
-  const beginChunk = cipher.update(payload);
-  const finalChunk = cipher.final();
-  const result = import_node_buffer3.Buffer.concat([iv, beginChunk, finalChunk], IV_SIZE + beginChunk.length + finalChunk.length);
-  return result;
-};
-_sendChunk = new WeakMap();
-_markChunk = new WeakSet();
-markChunk_fn = function(id, chunk) {
-  const marked = import_node_buffer3.Buffer.alloc(chunk.length + ID_SIZE);
-  marked.set(id, 0);
-  marked.set(chunk, ID_SIZE);
-  return marked;
-};
-var client_default = UDPLoggerClient;
-
-// src/server.js
-var import_node_events2 = require("events");
-
 // src/writer.js
-var import_node_path = __toESM(require("path"), 1);
-var import_node_fs = __toESM(require("fs"), 1);
-var import_node_stream2 = require("stream");
+var import_node_path = __toESM(require("node:path"), 1);
+var import_node_fs = __toESM(require("node:fs"), 1);
+var import_node_stream2 = require("node:stream");
 var EVENT_RENAME = "rename";
-var _dirName, _fileName, _filePath, _encoding, _flags, _options, _fd, _watcher, _open, open_fn, _close, close_fn, _watchRename;
 var UDPLoggerWriter = class extends import_node_stream2.Writable {
-  constructor(_a = {}) {
-    var _b = _a, {
-      dirName,
-      fileName,
-      encoding = "utf8",
-      flags = "a"
-    } = _b, options = __objRest(_b, [
-      "dirName",
-      "fileName",
-      "encoding",
-      "flags"
-    ]);
-    super(__spreadValues({}, options));
-    __privateAdd(this, _open);
-    __privateAdd(this, _close);
-    __privateAdd(this, _dirName, void 0);
-    __privateAdd(this, _fileName, void 0);
-    __privateAdd(this, _filePath, void 0);
-    __privateAdd(this, _encoding, void 0);
-    __privateAdd(this, _flags, void 0);
-    __privateAdd(this, _options, void 0);
-    __privateAdd(this, _fd, void 0);
-    __privateAdd(this, _watcher, void 0);
-    __privateAdd(this, _watchRename, async (event, fileName) => {
-      if (event === EVENT_RENAME && fileName === __privateGet(this, _fileName)) {
-        if (!import_node_fs.default.existsSync(__privateGet(this, _filePath))) {
-          this.cork();
-          await __privateMethod(this, _close, close_fn).call(this);
-          await __privateMethod(this, _open, open_fn).call(this);
-          this.uncork();
-        }
-      }
-    });
-    __privateSet(this, _dirName, dirName);
-    __privateSet(this, _fileName, fileName);
-    __privateSet(this, _encoding, encoding);
-    __privateSet(this, _filePath, import_node_path.default.resolve(__privateGet(this, _dirName), __privateGet(this, _fileName)));
-    __privateSet(this, _flags, flags);
-    __privateSet(this, _options, options);
+  #dirName;
+  #fileName;
+  #filePath;
+  #encoding;
+  #flags;
+  #options;
+  #fd;
+  #watcher;
+  constructor({
+    dirName,
+    fileName,
+    encoding = "utf8",
+    flags = "a",
+    ...options
+  } = {}) {
+    super({ ...options });
+    this.#dirName = dirName;
+    this.#fileName = fileName;
+    this.#encoding = encoding;
+    this.#filePath = import_node_path.default.resolve(this.#dirName, this.#fileName);
+    this.#flags = flags;
+    this.#options = options;
   }
   _construct(callback) {
-    __privateMethod(this, _open, open_fn).call(this).then(() => {
-      __privateSet(this, _watcher, import_node_fs.default.watch(__privateGet(this, _dirName), __privateGet(this, _watchRename)));
+    this.#open().then(() => {
+      this.#watcher = import_node_fs.default.watch(this.#dirName, this.#watchRename);
       this.emit("writer:ready");
       callback(null);
     }).catch(callback);
   }
   _destroy(error, callback) {
-    __privateGet(this, _watcher).close();
-    __privateMethod(this, _close, close_fn).call(this).then(() => callback(error)).catch(callback);
+    if (error) {
+      this.emit("error", error);
+    }
+    this.#watcher.close();
+    this.#close().then(() => callback(error)).catch(callback);
   }
   _write(chunk, encoding, callback) {
     if (typeof chunk === "string") {
-      import_node_fs.default.write(__privateGet(this, _fd), chunk, void 0, __privateGet(this, _encoding), callback);
+      import_node_fs.default.write(this.#fd, chunk, void 0, this.#encoding, callback);
     } else {
-      import_node_fs.default.write(__privateGet(this, _fd), chunk, callback);
+      import_node_fs.default.write(this.#fd, chunk, callback);
     }
   }
   _writev(chunks, callback) {
@@ -533,93 +380,178 @@ var UDPLoggerWriter = class extends import_node_stream2.Writable {
       let data = "";
       for (let i = 0; i < chunks.length; ++i)
         data += chunks[i].chunk;
-      import_node_fs.default.write(__privateGet(this, _fd), data, void 0, __privateGet(this, _encoding), callback);
+      import_node_fs.default.write(this.#fd, data, void 0, this.#encoding, callback);
     } else {
       const arr = [];
       for (let i = 0; i < chunks.length; ++i)
         arr.push(chunks[i].chunk);
-      import_node_fs.default.write(__privateGet(this, _fd), Buffer.concat(arr), callback);
+      import_node_fs.default.write(this.#fd, Buffer.concat(arr), callback);
     }
   }
-};
-_dirName = new WeakMap();
-_fileName = new WeakMap();
-_filePath = new WeakMap();
-_encoding = new WeakMap();
-_flags = new WeakMap();
-_options = new WeakMap();
-_fd = new WeakMap();
-_watcher = new WeakMap();
-_open = new WeakSet();
-open_fn = async function() {
-  return await new Promise((resolve, reject) => {
-    import_node_fs.default.open(__privateGet(this, _filePath), __privateGet(this, _flags), (err, fd) => {
-      if (err)
-        return reject(err);
-      __privateSet(this, _fd, fd);
-      resolve(null);
+  async #open() {
+    return await new Promise((resolve, reject) => {
+      import_node_fs.default.open(this.#filePath, this.#flags, (err, fd) => {
+        if (err)
+          return reject(err);
+        this.#fd = fd;
+        resolve(null);
+      });
     });
-  });
-};
-_close = new WeakSet();
-close_fn = async function() {
-  return await new Promise((resolve, reject) => {
-    import_node_fs.default.close(__privateGet(this, _fd), (err) => {
-      if (err)
-        return reject(err);
-      resolve(null);
+  }
+  async #close() {
+    return await new Promise((resolve, reject) => {
+      import_node_fs.default.close(this.#fd, (err) => {
+        if (err)
+          return reject(err);
+        resolve(null);
+      });
     });
-  });
+  }
+  #watchRename = async (event, fileName) => {
+    if (event === EVENT_RENAME && fileName === this.#fileName) {
+      if (!import_node_fs.default.existsSync(this.#filePath)) {
+        this.cork();
+        await this.#close();
+        await this.#open();
+        this.uncork();
+      }
+    }
+  };
 };
-_watchRename = new WeakMap();
 var writer_default = UDPLoggerWriter;
 
-// src/server.js
-var _options2;
-var UDPLoggerServer = class extends import_node_events2.EventEmitter {
-  constructor(options) {
-    var _a;
-    super(options);
-    __privateAdd(this, _options2, void 0);
-    __publicField(this, "socket");
-    __publicField(this, "writer");
-    __publicField(this, "handleError", (error) => {
-      this.emit("error", error);
+// src/client.js
+var import_node_dgram2 = __toESM(require("node:dgram"), 1);
+var import_node_buffer4 = require("node:buffer");
+var import_node_events2 = require("node:events");
+var UDPLoggerClient = class extends import_node_events2.EventEmitter {
+  #port;
+  #host;
+  #type;
+  #packetSize;
+  #isAsync;
+  #serializer;
+  #encryptionFunction;
+  #encryptionSecret;
+  #connecting;
+  #socket;
+  constructor({
+    type = "udp4",
+    port = 44002,
+    host = type === "udp4" ? "127.0.0.1" : "::1",
+    packetSize = 1280,
+    isAsync = false,
+    encryption,
+    serializer = DEFAULT_SERIALIZER,
+    ...other
+  } = {}) {
+    super(other);
+    this.#port = port;
+    this.#host = host;
+    this.#type = type;
+    this.#packetSize = packetSize - ID_SIZE;
+    this.#isAsync = isAsync;
+    this.#serializer = serializer;
+    if (encryption) {
+      if (typeof encryption === "string") {
+        this.#packetSize = packetSize - IV_SIZE;
+        this.#encryptionSecret = import_node_buffer4.Buffer.from(encryption);
+        this.#encryptionFunction = (data) => DEFAULT_ENCRYPT_FUNCTION(data, this.#encryptionSecret);
+      } else if (encryption instanceof Function) {
+        this.#encryptionFunction = encryption;
+      }
+    }
+    this.#socket = import_node_dgram2.default.createSocket(this.#type);
+    this.#connecting = (0, import_node_events2.once)(this.#socket, "connect");
+    this.#socket.connect(this.#port, this.#host, () => {
+      this.log = isAsync ? this.#asyncLog : this.#syncLog;
+      this.emit("ready");
     });
-    (_a = options.fileName) != null ? _a : options.fileName = `udp-port-${options.port}.log`;
-    __privateSet(this, _options2, options);
   }
-  start() {
-    this.socket = new socket_default(__privateGet(this, _options2));
-    this.writer = new writer_default(__privateGet(this, _options2));
+  log = (...args) => {
+    this.#connecting.then(() => this.#isAsync ? this.#asyncLog(...args) : this.#syncLog(...args));
+  };
+  #syncLog = (...args) => {
+    this.#send(this.#serializer(args), generateId());
+  };
+  #asyncLog = (...args) => {
+    setImmediate(this.#syncLog, ...args);
+  };
+  #send = (payload, id) => {
+    const total = Math.ceil(payload.length / this.#packetSize);
+    for (let i = 0; i < payload.length; i += this.#packetSize) {
+      let chunk = this.#markChunk(id, total, i, payload.subarray(i, i + this.#packetSize));
+      if (this.#encryptionFunction !== void 0) {
+        chunk = this.#encryptionFunction(chunk);
+      }
+      this.#sendChunk(chunk);
+    }
+  };
+  #sendChunk = (payload) => {
+    this.#socket.send(payload);
+  };
+  #markChunk(id, total, index, chunk) {
+    const marked = import_node_buffer4.Buffer.alloc(chunk.length + ID_SIZE);
+    marked.set(id, 0);
+    setChunkMetaInfo(marked, total, index);
+    marked.set(chunk, ID_SIZE);
+    return marked;
+  }
+};
+var client_default = UDPLoggerClient;
+
+// src/server.js
+var import_node_events3 = require("node:events");
+var UDPLoggerServer = class extends import_node_events3.EventEmitter {
+  #options;
+  socket;
+  writer;
+  constructor(options) {
+    super(options);
+    options.fileName ??= `udp-port-${options.port || DEFAULT_PORT}.log`;
+    this.#options = options;
+  }
+  async start() {
+    this.socket = new socket_default(this.#options);
+    this.writer = new writer_default(this.#options);
     this.socket.pipe(this.writer);
     this.socket.on("error", this.handleError);
     this.writer.on("error", this.handleError);
-    Promise.all([
-      import_node_events2.EventEmitter.once(this.socket, "socket:ready"),
-      import_node_events2.EventEmitter.once(this.writer, "writer:ready")
-    ]).then(() => this.emit("ready"));
+    this.socket.on("warning", this.handleWarning);
+    this.socket.on("socket:missing", this.handleWarning);
+    await Promise.all([
+      import_node_events3.EventEmitter.once(this.socket, "socket:ready"),
+      import_node_events3.EventEmitter.once(this.writer, "writer:ready")
+    ]);
+    this.emit("ready");
     return this;
   }
+  handleError = (error) => {
+    this.emit("error", error);
+  };
+  handleWarning = (warning) => {
+    this.emit("warning", warning);
+  };
   async stop() {
     this.socket.off("error", this.handleError);
     this.writer.off("error", this.handleError);
-    this.socket.destroy();
-    this.writer.destroy();
+    this.socket.off("warning", this.handleWarning);
+    this.socket.off("socket:missing", this.handleWarning);
+    this.socket.push(null);
     await Promise.all([
-      import_node_events2.EventEmitter.once(this.socket, "close"),
-      import_node_events2.EventEmitter.once(this.writer, "close")
+      import_node_events3.EventEmitter.once(this.socket, "close"),
+      import_node_events3.EventEmitter.once(this.writer, "close")
     ]);
     this.emit("close");
     return this;
   }
 };
-_options2 = new WeakMap();
 var server_default = UDPLoggerServer;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   UDPLoggerClient,
   UDPLoggerServer,
   UDPLoggerSocket,
+  UDPLoggerWriter,
   constants
 });

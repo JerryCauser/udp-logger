@@ -1,23 +1,20 @@
-import crypto from 'node:crypto'
 import dgram from 'node:dgram'
-import v8 from 'node:v8'
 import { Buffer } from 'node:buffer'
 import { EventEmitter, once } from 'node:events'
 import { generateId, setChunkMetaInfo, ID_SIZE } from './identifier.js'
-import { IV_SIZE } from './constants.js'
-
-export const DEFAULT_SERIALIZER = v8.serialize
+import { IV_SIZE, DEFAULT_ENCRYPT_FUNCTION, DEFAULT_SERIALIZER } from './constants.js'
 
 /**
  * @typedef {object} UDPLoggerClientOptions
- * @property {string} [options.type='udp4']
- * @property {number} [options.port=44002]
- * @property {string} [options.host=('127.0.0.1'|'::1')]
- * @property {number} [options.packetSize=1280] - in bytes
- * @property {object} [options.encryption]
- * @property {string} [options.encryption.algorithm='aes-256-ctr']
- * @property {string} options.encryption.secret
- * @property {function} [options.serializer=v8.serialize]
+ * @property {string?} [type='udp4']
+ * @property {number?} [port=44002]
+ * @property {string?} [host=('127.0.0.1'|'::1')]
+ * @property {number?} [packetSize=1280] in bytes
+ * @property {boolean?} [isAsync=false] enable or not delayed message sent
+ * @property {string | ((payload: Buffer) => Buffer)} [encryption]
+ *                    if passed string - will be applied aes-256-ctr encryption with passed string as secret;
+ *                    if passed function - will be used that function to encrypt every message;
+ * @property {(payload: any) => Buffer} [serializer=v8.serialize]
  */
 
 /**
@@ -25,20 +22,39 @@ export const DEFAULT_SERIALIZER = v8.serialize
  * @constructor
  */
 class UDPLoggerClient extends EventEmitter {
+  /** @type {number} */
   #port
+
+  /** @type {string} */
   #host
+
+  /** @type {'udp4'|'udp6'} */
   #type
+
+  /** @type {number} */
   #packetSize
 
+  /** @type {boolean} */
   #isAsync
+
+  /** @type {(any) => Buffer} */
   #serializer
 
-  #encryptionAlgorithm // TODO make it by function
+  /** @type {(Buffer) => Buffer} */
+  #encryptionFunction
+
+  /** @type {Buffer} */
   #encryptionSecret
 
+  /** @type {Promise<any>} */
   #connecting
+
+  /** @type {dgram.Socket} */
   #socket
 
+  /**
+   * @param {UDPLoggerClientOptions?} [options]
+   */
   constructor ({
     type = 'udp4',
     port = 44002,
@@ -47,9 +63,9 @@ class UDPLoggerClient extends EventEmitter {
     isAsync = false,
     encryption,
     serializer = DEFAULT_SERIALIZER,
-    ...options
+    ...other
   } = {}) {
-    super(options)
+    super(other)
 
     this.#port = port
     this.#host = host
@@ -59,14 +75,15 @@ class UDPLoggerClient extends EventEmitter {
     this.#isAsync = isAsync
     this.#serializer = serializer
 
-    this.#encryptionSecret = encryption?.secret
-    this.#encryptionAlgorithm =
-      encryption?.algorithm ??
-      (this.#encryptionSecret ? 'aes-256-ctr' : undefined)
+    if (encryption) {
+      if (typeof encryption === 'string') {
+        this.#packetSize = packetSize - IV_SIZE
+        this.#encryptionSecret = Buffer.from(encryption)
 
-    if (this.#encryptionSecret) {
-      this.#packetSize = packetSize - IV_SIZE
-      this.#encryptionSecret = Buffer.from(this.#encryptionSecret)
+        this.#encryptionFunction = data => DEFAULT_ENCRYPT_FUNCTION(data, this.#encryptionSecret)
+      } else if (encryption instanceof Function) {
+        this.#encryptionFunction = encryption
+      }
     }
 
     this.#socket = dgram.createSocket(this.#type)
@@ -75,28 +92,6 @@ class UDPLoggerClient extends EventEmitter {
       this.log = isAsync ? this.#asyncLog : this.#syncLog
       this.emit('ready')
     })
-  }
-
-  /**
-   * @param {string|Buffer} message
-   * @returns {Buffer}
-   */
-  #encryptMessage (message) {
-    const iv = crypto.randomBytes(IV_SIZE).subarray(0, IV_SIZE)
-    const payload = Buffer.from(message)
-
-    const cipher = crypto.createCipheriv(
-      this.#encryptionAlgorithm,
-      this.#encryptionSecret,
-      iv
-    )
-    const beginChunk = cipher.update(payload)
-    const finalChunk = cipher.final()
-
-    return Buffer.concat(
-      [iv, beginChunk, finalChunk],
-      IV_SIZE + beginChunk.length + finalChunk.length
-    )
   }
 
   /**
@@ -137,8 +132,8 @@ class UDPLoggerClient extends EventEmitter {
         payload.subarray(i, i + this.#packetSize)
       )
 
-      if (this.#encryptionAlgorithm !== undefined) {
-        chunk = this.#encryptMessage(chunk)
+      if (this.#encryptionFunction !== undefined) {
+        chunk = this.#encryptionFunction(chunk)
       }
 
       this.#sendChunk(chunk)

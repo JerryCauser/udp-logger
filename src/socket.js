@@ -1,5 +1,4 @@
 import EventEmitter from 'node:events'
-import crypto from 'node:crypto'
 import dgram from 'node:dgram'
 import { Buffer } from 'node:buffer'
 import { Readable } from 'node:stream'
@@ -8,21 +7,21 @@ import {
   DEFAULT_PORT,
   DEFAULT_MESSAGE_FORMATTER,
   DEFAULT_DESERIALIZER,
-  IV_SIZE
+  DEFAULT_DECRYPT_FUNCTION
 } from './constants.js'
 
 /**
  * @typedef {object} UDPLoggerSocketOptions
- * @property {string} [options.type='udp4']
- * @property {number} [options.port=44002]
- * @property {object} [options.decryption]
- * @property {string} [options.decryption.algorithm]
- * @property {string} [options.decryption.secret]
- * @property {number} [options.collectorInterval=1000]
- * @property {(Buffer) => any} [options.deserializer]
- * @property {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} [options.formatMessage]
+ * @property {string} [type='udp4']
+ * @property {number} [port=44002]
+ * @property {string} [host=('127.0.0.1'|'::1')]
+ * @property {string | ((payload: Buffer) => Buffer)} [decryption]
+ *    if passed string - will be applied aes-256-ctr encryption with passed string as secret;
+ *    if passed function - will be used that function to encrypt every message;
+ * @property {(payload: Buffer) => any} [deserializer]
+ * @property {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} [formatMessage]
  *
- * @typedef {ReadableOptions & UDPLoggerSocketOptions}
+ * @extends {ReadableOptions}
  */
 
 /**
@@ -30,30 +29,53 @@ import {
  * @param {UDPLoggerSocketOptions} [options={}]
  */
 class UDPLoggerSocket extends Readable {
+  /** @type {string} */
   #host
+
+  /** @type {number} */
   #port
+
+  /** @type {string} */
   #address
+
+  /** @type {'udp4'|'udp6'} */
   #type
 
-  #decryptionAlgorithm
+  /** @type {undefined|function(Buffer): Buffer} */
+  #decryptionFunction
+
+  /** @type {undefined|string} */
   #decryptionSecret
 
+  /** @type {dgram.Socket} */
   #socket
 
+  /** @type {(Buffer) => any} */
   #deserializer
+
+  /** @type {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} */
   #formatMessage
 
   /** @type {Map<string, [logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string, logTotal:number]>} data */
   #collector = new Map()
 
+  /** @type {number} */
   #gcIntervalId
+
+  /** @type {number} */
   #gcIntervalTime = 5000
+
+  /** @type {number} */
   #gcExpirationTime = 10000
 
+  /** @type {boolean} */
   #allowPush = true
+
+  /** @type {(string | Buffer | Uint8Array)[]} */
   #messages = []
 
-  #handleSocketMessage = () => {}
+  /** @type {function (Buffer):void} */
+  #handleSocketMessage
 
   constructor ({
     type = 'udp4',
@@ -70,16 +92,20 @@ class UDPLoggerSocket extends Readable {
     this.#deserializer = deserializer
     this.#formatMessage = formatMessage
     this.#type = type
-    this.#decryptionSecret = decryption?.secret
-    this.#decryptionAlgorithm =
-      decryption?.algorithm ??
-      (this.#decryptionSecret ? 'aes-256-ctr' : undefined)
+
+    if (decryption) {
+      if (typeof decryption === 'string') {
+        this.#decryptionSecret = Buffer.from(decryption)
+
+        this.#decryptionFunction = data => DEFAULT_DECRYPT_FUNCTION(data, this.#decryptionSecret)
+      } else if (decryption instanceof Function) {
+        this.#decryptionFunction = decryption
+      }
+    }
 
     this.#handleSocketMessage = this.#handlePlainMessage
 
-    if (this.#decryptionSecret) {
-      this.#decryptionSecret = Buffer.from(this.#decryptionSecret)
-
+    if (this.#decryptionFunction instanceof Function) {
       this.#handleSocketMessage = this.#handleEncryptedMessage
     }
   }
@@ -212,37 +238,20 @@ class UDPLoggerSocket extends Readable {
     data[0].set(index, buffer.subarray(ID_SIZE))
 
     if (data[0].size === total) {
+      this.#collector.delete(id)
       this.#compileMessage(data[0], data[2], data[3])
     }
   }
 
   /**
    * @param {Buffer} buffer
-   * @returns {Buffer}
-   */
-  #decryptMessage (buffer) {
-    // TODO move to another file and exclude from current code
-    const iv = buffer.subarray(0, IV_SIZE)
-    const payload = buffer.subarray(IV_SIZE)
-
-    const decipher = crypto.createDecipheriv(
-      this.#decryptionAlgorithm,
-      this.#decryptionSecret,
-      iv
-    )
-    const beginChunk = decipher.update(payload)
-    const finalChunk = decipher.final()
-    return Buffer.concat(
-      [beginChunk, finalChunk],
-      beginChunk.length + finalChunk.length
-    )
-  }
-
-  /**
-   * @param {Buffer} buffer
    */
   #handleEncryptedMessage = (buffer) => {
-    return this.#handlePlainMessage(this.#decryptMessage(buffer))
+    try {
+      return this.#handlePlainMessage(this.#decryptionFunction(buffer))
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   #gcFunction = () => {
@@ -251,7 +260,7 @@ class UDPLoggerSocket extends Readable {
     for (const [id, payload] of this.#collector) {
       if (payload[1] + this.#gcExpirationTime < dateNow) {
         this.#collector.delete(id)
-        this.emit('socket:missing', { id, date: payload[2] })
+        this.emit('socket:missing', { message: 'missing data', id, date: payload[2] })
       }
     }
   }

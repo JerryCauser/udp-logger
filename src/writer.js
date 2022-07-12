@@ -11,7 +11,7 @@ const EVENT_RENAME = 'rename'
  * @property {string} [options.encoding='utf8']
  * @property {string} [options.flags='a']
  *
- * @typedef {WritableOptions & UDPLoggerWriterOptions}
+ * @extends {WritableOptions}
  */
 
 /**
@@ -58,6 +58,10 @@ class UDPLoggerWriter extends Writable {
   }
 
   _destroy (error, callback) {
+    if (error) {
+      this.emit('error', error)
+    }
+
     this.#watcher.close()
 
     this.#close()
