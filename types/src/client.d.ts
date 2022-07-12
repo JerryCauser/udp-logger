@@ -16,7 +16,7 @@ export interface UDPLoggerClientOptions {
    * if passed string - will be applied aes-256-ctr encryption with passed string as secret;
    * if passed function - will be used that function to encrypt every message;
    */
-  encryption?: string | ((Buffer) => Buffer)
+  encryption?: string | ((payload: Buffer) => Buffer)
   serializer?: (data: any) => Buffer
   captureRejections?: boolean // for reason that we do not have EventEmitterOptions I wrote it directly here
 }
