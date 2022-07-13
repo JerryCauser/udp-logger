@@ -13,5 +13,6 @@ declare class UDPLoggerServer {
   writer: UDPLoggerWriter
   start (): Promise<UDPLoggerServer>
   handleError: (error: Error) => void
+  handleWarning: (warning: any) => void
   stop (): Promise<UDPLoggerServer>
 }
