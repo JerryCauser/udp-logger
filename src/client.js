@@ -2,7 +2,11 @@ import dgram from 'node:dgram'
 import { Buffer } from 'node:buffer'
 import { EventEmitter, once } from 'node:events'
 import { generateId, setChunkMetaInfo, ID_SIZE } from './identifier.js'
-import { IV_SIZE, DEFAULT_ENCRYPT_FUNCTION, DEFAULT_SERIALIZER } from './constants.js'
+import {
+  IV_SIZE,
+  DEFAULT_ENCRYPT_FUNCTION,
+  DEFAULT_SERIALIZER
+} from './constants.js'
 
 /**
  * @typedef {object} UDPLoggerClientOptions
@@ -10,7 +14,7 @@ import { IV_SIZE, DEFAULT_ENCRYPT_FUNCTION, DEFAULT_SERIALIZER } from './constan
  * @property {number?} [port=44002]
  * @property {string?} [host=('127.0.0.1'|'::1')]
  * @property {number?} [packetSize=1280] in bytes
- * @property {boolean?} [isAsync=false] enable or not delayed message sent
+ * @property {boolean?} [isAsync=false] enables or not delayed message sending
  * @property {string | ((payload: Buffer) => Buffer)} [encryption]
  *                    if passed string - will be applied aes-256-ctr encryption with passed string as secret;
  *                    if passed function - will be used that function to encrypt every message;
@@ -80,7 +84,8 @@ class UDPLoggerClient extends EventEmitter {
         this.#packetSize = packetSize - IV_SIZE
         this.#encryptionSecret = Buffer.from(encryption)
 
-        this.#encryptionFunction = data => DEFAULT_ENCRYPT_FUNCTION(data, this.#encryptionSecret)
+        this.#encryptionFunction = (data) =>
+          DEFAULT_ENCRYPT_FUNCTION(data, this.#encryptionSecret)
       } else if (encryption instanceof Function) {
         this.#encryptionFunction = encryption
       }

@@ -25,7 +25,6 @@ class UDPLoggerWriter extends Writable {
   #encoding
 
   #flags
-  #options
 
   #fd
   #watcher
@@ -44,14 +43,13 @@ class UDPLoggerWriter extends Writable {
     this.#encoding = encoding
     this.#filePath = path.resolve(this.#dirName, this.#fileName)
     this.#flags = flags
-    this.#options = options
   }
 
   _construct (callback) {
     this.#open()
       .then(() => {
         this.#watcher = fs.watch(this.#dirName, this.#watchRename)
-        this.emit('writer:ready')
+        this.emit('ready')
         callback(null)
       })
       .catch(callback)

@@ -16,8 +16,9 @@ import {
  * @property {number} [port=44002]
  * @property {string} [host=('127.0.0.1'|'::1')]
  * @property {string | ((payload: Buffer) => Buffer)} [decryption]
- *    if passed string - will be applied aes-256-ctr encryption with passed string as secret;
+ *    if passed string - will be applied aes-256-ctr encryption with passed string as secret, so it should be 32char long;
  *    if passed function - will be used that function to encrypt every message;
+ *    if passed nothing - will not use any kind of encryption
  * @property {(payload: Buffer) => any} [deserializer]
  * @property {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} [formatMessage]
  *
@@ -97,7 +98,8 @@ class UDPLoggerSocket extends Readable {
       if (typeof decryption === 'string') {
         this.#decryptionSecret = Buffer.from(decryption)
 
-        this.#decryptionFunction = data => DEFAULT_DECRYPT_FUNCTION(data, this.#decryptionSecret)
+        this.#decryptionFunction = (data) =>
+          DEFAULT_DECRYPT_FUNCTION(data, this.#decryptionSecret)
       } else if (decryption instanceof Function) {
         this.#decryptionFunction = decryption
       }
@@ -171,7 +173,7 @@ class UDPLoggerSocket extends Readable {
     this.#address = this.#socket.address().address
     this.#port = this.#socket.address().port
 
-    this.emit('socket:ready')
+    this.emit('ready')
   }
 
   async #stop () {
@@ -203,19 +205,13 @@ class UDPLoggerSocket extends Readable {
   }
 
   #attachHandlers () {
-    this.#socket.on('close', this.#handleSocketClose)
     this.#socket.on('error', this.#handleSocketError)
     this.#socket.on('message', this.#handleSocketMessage)
   }
 
   #detachHandlers () {
-    this.#socket.off('close', this.#handleSocketClose)
     this.#socket.off('error', this.#handleSocketError)
     this.#socket.off('message', this.#handleSocketMessage)
-  }
-
-  #handleSocketClose = () => {
-    this.emit('socket:close')
   }
 
   #handleSocketError = (error) => {
@@ -260,7 +256,11 @@ class UDPLoggerSocket extends Readable {
     for (const [id, payload] of this.#collector) {
       if (payload[1] + this.#gcExpirationTime < dateNow) {
         this.#collector.delete(id)
-        this.emit('socket:missing', { message: 'missing data', id, date: payload[2] })
+        this.emit('warning', {
+          message: 'missing_message',
+          id,
+          date: payload[2]
+        })
       }
     }
   }
@@ -280,8 +280,7 @@ class UDPLoggerSocket extends Readable {
       error.ctx = {
         originMessage,
         date,
-        id,
-        body
+        id
       }
 
       this.emit('warning', error)
@@ -310,7 +309,7 @@ class UDPLoggerSocket extends Readable {
 
     this.#addMessage(message)
 
-    this.emit('socket:message', message)
+    this.emit('message', message, { body: deserializedBody, date, id })
   }
 }
 

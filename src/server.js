@@ -27,15 +27,13 @@ class UDPLoggerServer extends EventEmitter {
 
     this.socket.pipe(this.writer)
 
-    this.socket.on('error', this.handleError)
-    this.writer.on('error', this.handleError)
-
-    this.socket.on('warning', this.handleWarning)
-    this.socket.on('socket:missing', this.handleWarning)
+    this.socket.on('error', this.#handleError)
+    this.writer.on('error', this.#handleError)
+    this.socket.on('warning', this.#handleWarning)
 
     await Promise.all([
-      EventEmitter.once(this.socket, 'socket:ready'),
-      EventEmitter.once(this.writer, 'writer:ready')
+      EventEmitter.once(this.socket, 'ready'),
+      EventEmitter.once(this.writer, 'ready')
     ])
 
     this.emit('ready')
@@ -46,23 +44,21 @@ class UDPLoggerServer extends EventEmitter {
   /**
    * @param {Error~object} error
    */
-  handleError = (error) => {
+  #handleError = (error) => {
     this.emit('error', error)
   }
 
   /**
    * @param {any} warning
    */
-  handleWarning = (warning) => {
+  #handleWarning = (warning) => {
     this.emit('warning', warning)
   }
 
   async stop () {
-    this.socket.off('error', this.handleError)
-    this.writer.off('error', this.handleError)
-
-    this.socket.off('warning', this.handleWarning)
-    this.socket.off('socket:missing', this.handleWarning)
+    this.socket.off('error', this.#handleError)
+    this.writer.off('error', this.#handleError)
+    this.socket.off('warning', this.#handleWarning)
 
     this.socket.push(null)
 
