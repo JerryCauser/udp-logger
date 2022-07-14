@@ -293,18 +293,19 @@ class UDPLoggerSocket extends Readable {
    * @param {string} id
    */
   #compileMessageUnsafe (body, date, id) {
-    let deserializedBody
+    let bodyBuffered
 
-    if (body.size === 1) {
-      deserializedBody = this.#deserializer([...body.values()][0])
-    } else {
+    if (body.size > 1) {
       const sortedBuffers = [...body.entries()]
         .sort((a, b) => a[0] - b[0])
         .map((n) => n[1])
 
-      deserializedBody = this.#deserializer(Buffer.concat(sortedBuffers))
+      bodyBuffered = Buffer.concat(sortedBuffers)
+    } else {
+      bodyBuffered = [...body.values()][0]
     }
 
+    const deserializedBody = this.#deserializer(Buffer.concat(bodyBuffered))
     const message = this.#formatMessage(deserializedBody, date, id)
 
     this.#addMessage(message)
