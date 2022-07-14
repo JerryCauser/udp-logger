@@ -64,7 +64,7 @@ Extends [`EventEmitter`][node-eventemitter]
   - `port` `<string | number>` – optional. **Default** `44002`
   - `host` `<string>` – optional. **Default** `'127.0.0.1'` or `'::1'`
   - `packetSize` `<number>` – optional. Number of bytes in each packet (chunk). **Default** `1280`
-  - `isAsync` `<boolean>` – optional. Enables delayed message sending. Useful if you don't want to wait even a some `ns` in your business flow for logging. **Default** `false`
+  - `isAsync` `<boolean>` – optional. Enables delayed message sending. Useful if you don't want to wait even for some `ns` in your business flow for logging. **Default** `false`
   - `encryption` `<string> | <(payload: Buffer) => Buffer>` – optional. **Default** `undefined`
     - if passed `string` - will be applied `aes-256-ctr` encryption with passed string as a secret, so it should be 32char long;
     - if passed `function` - will be used that function to encrypt every message;
@@ -76,7 +76,7 @@ Extends [`EventEmitter`][node-eventemitter]
 - `log (...args: any)`: `<void>` – just log whatever you need.
 
 #### Events:
-- `'ready'`: `<void>` – emitted when client "establish" udp connection. But you are not required to wait it and just start using it. I exposed it for debugging issues. Just start `log`
+- `'ready'`: `<void>` – emitted when the client "establishes" udp connection. But you are not required to wait and just start using `log` method.
 
 #### Usage
 ##### Simple example with encryption
@@ -132,11 +132,11 @@ It is a simple wrapper around [`UDPLoggerSocket`][socket] and [`UDPLoggerWriter`
   - `host` `<string>` – optional **Default** `'127.0.0.1'` or `'::1'`
   - `decryption` `<string> | <(payload: Buffer) => Buffer>` – optional. For more details check [UDPLoggerSocket Arguments Section][socket] **Default** `undefined`
   - `deserializer` `<(payload: Buffer) => any>` - optional. For more details check [UDPLoggerSocket Arguments Section][socket] **Default** `v8.deserialize`
-  - `formatMessage` `(data:any, date:Date, id:number|string) => string | Buffer | Uint8Array`  - optional. **Default** `DEFAULT_MESSAGE_FORMATTER` from constants
+  - `formatMessage` `<(data:any, date:Date, id:number|string) => string | Buffer | Uint8Array>`  - optional. **Default** `DEFAULT_MESSAGE_FORMATTER` from constants
 
 #### Fields: 
-- `socket`: `<UDPLoggerSocket>` – instance of socket. You have access to it if you need it.
-- `writer`: `<UDPLoggerWriter>` – instance of writer. You have access to it if you need it.
+- `socket`: `<UDPLoggerSocket>` – instance of [socket][socket].
+- `writer`: `<UDPLoggerWriter>` – instance of [writer][writer].
 
 #### Methods:
 - `start ()`: `<Promise<UDPLoggerServer>>`
@@ -145,7 +145,7 @@ It is a simple wrapper around [`UDPLoggerSocket`][socket] and [`UDPLoggerWriter`
 #### Events:
 - `'ready'`: `<void>` – emitted when server started
 - `'close'`: `<void>` – emitted when server closed
-- `'error'`: `<Error~object>` – emitted when some error occurs in `socket` or `writer`. Requires you to handle errors on instance of servers.
+- `'error'`: `<Error~object>` – emitted when some error occurs in `socket` or `writer`. Requires you to handle errors on instance of server.
 - `'warning'`: `<any>` – emitted when warning occurs. For more details check [UDPLoggerSocket Events Sections][socket-event-warning]
 
 #### Usage
@@ -159,8 +159,6 @@ const server = new UDPLoggerServer({
   // decryption: (buf) => buf.map(byte => byte ^ 83) // not safe at all, but better than nothing
   decryption: '11223344556677889900aabbccddeeff'
 })
-
-server.on('error', /*some handler for error, console.error or restart server*/)
 
 await server.start()
 
@@ -185,7 +183,7 @@ It is a UDP socket in `readable stream` form.
     - if passed `undefined` - will not use any kind of decryption.
   - `deserializer` `<(payload: Buffer) => any>` - optional. **Default** `v8.deserialize`
     - Used v8.deserialize, but you could use something like [bson][js-bson], or great [avsc][avsc] if you could make all your logs are perfectly typed. Or you even can use `JSON.stringify/JSON.parse` if your logs are simple. It will be faster than v8 serialize/deserialize. Check this [Binary serialization comparison][javascript-serialization-benchmark], it is cool.
-  - `formatMessage` `(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array`  - optional. **Default** `DEFAULT_MESSAGE_FORMATTER` from constants
+  - `formatMessage` `<(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array>`  - optional. **Default** `DEFAULT_MESSAGE_FORMATTER` from constants
 
 #### Fields:
 - `port`: `<number>`
@@ -198,7 +196,7 @@ All `Readable` events of course and:
 Emitted when socket started and ready to receive data.
 
 ##### Event: `'message'`
-Emitted right after message was compiled and formatted. Can be used for creating some business logic based on logs (for example push some data into google statistics)
+Emitted right after a message was compiled and formatted. Can be used for creating some business logic based on logs (for example pushing some data into google statistics)
   - `message` `<string>` - message
   - `ctx` `<object>`
     - `body` `<any>` - deserialized delivered body
@@ -212,7 +210,7 @@ Emitted when warning occurs.
    - `id` `<string>` – optional
    - `date` `<Date>` – optional
 
-Message might be:
+A message might be:
    - `missing_message` – when some messages didn't receive all chunks and got expired.
    - `compile_message_error` – when some messages failed to be compiled from chunks.
 
@@ -226,8 +224,6 @@ const socket = new UDPLoggersocket({
   // decryption: (buf) => buf.map(byte => byte ^ 83) // not safe at all, but better than nothing
   decryption: '11223344556677889900aabbccddeeff'
 })
-
-socket.on('error', /*some handler for error, console.error or restart server*/)
 
 for await (const message of socket) {
   /*handle messages*/
@@ -288,15 +284,16 @@ socket.pipe(writer)
 
 
 ### Additional Exposed variables and functions from [`constants`][constants]
-#### constant `DEFAULT_PORT` `<number>` : `44002`
 #### function `DEFAULT_MESSAGE_FORMATTER(data, date, id)`
  - `data` `<any[]>` — deserialized arguments of `log` function from [`UDPLoggerClient`][client]
  - `date` `<Date>`
  - `id` `<string>`
  - Returns: `<Buffer>` | `<string>` | `<Uint8Array>`
 
-Default format function to write logs. Underhood it uses [util-inspect][node-util-inspect] function. For more info you can check source files.
+Default format function to write logs. Underhood it uses [util-inspect][node-util-inspect] function. For more info, you can check the source files.
 
+#### constant `DEFAULT_PORT`
+- `<number>` : `44002`
 ---
 
 License ([MIT](LICENSE))
