@@ -11,16 +11,16 @@ const DEFAULT_FORMAT_OPTIONS = {
 }
 
 /**
- * @param {any} data
+ * @param {any[]} data
  * @param {Date} date
  * @param {number|string} id
  * @returns {string|Buffer|Uint8Array}
  */
 export const DEFAULT_MESSAGE_FORMATTER = (data, date, id) => {
   data.unshift(DEFAULT_FORMAT_OPTIONS)
-  data = util.formatWithOptions.apply(util, data)
+  const str = util.formatWithOptions.apply(util, data)
 
-  return `${date.toISOString()}|${id}|${data}\n`
+  return `${date.toISOString()}|${id}|${str}\n`
 }
 
 /**

@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer"
 
 export function DEFAULT_MESSAGE_FORMATTER (
-  data: any,
+  data: any[],
   date: Date,
   id: number | string
 ): string | Buffer | Uint8Array

@@ -22,11 +22,12 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // index.js
 var udp_logger_exports = {};
 __export(udp_logger_exports, {
+  DEFAULT_MESSAGE_FORMATTER: () => DEFAULT_MESSAGE_FORMATTER,
+  DEFAULT_PORT: () => DEFAULT_PORT,
   UDPLoggerClient: () => client_default,
   UDPLoggerServer: () => server_default,
   UDPLoggerSocket: () => socket_default,
-  UDPLoggerWriter: () => writer_default,
-  constants: () => constants_exports
+  UDPLoggerWriter: () => writer_default
 });
 module.exports = __toCommonJS(udp_logger_exports);
 
@@ -92,16 +93,6 @@ function parseId(buffer) {
 }
 
 // src/constants.js
-var constants_exports = {};
-__export(constants_exports, {
-  DEFAULT_DECRYPT_FUNCTION: () => DEFAULT_DECRYPT_FUNCTION,
-  DEFAULT_DESERIALIZER: () => DEFAULT_DESERIALIZER,
-  DEFAULT_ENCRYPT_FUNCTION: () => DEFAULT_ENCRYPT_FUNCTION,
-  DEFAULT_MESSAGE_FORMATTER: () => DEFAULT_MESSAGE_FORMATTER,
-  DEFAULT_PORT: () => DEFAULT_PORT,
-  DEFAULT_SERIALIZER: () => DEFAULT_SERIALIZER,
-  IV_SIZE: () => IV_SIZE
-});
 var import_node_v8 = __toESM(require("node:v8"), 1);
 var import_node_util = __toESM(require("node:util"), 1);
 var import_node_crypto2 = __toESM(require("node:crypto"), 1);
@@ -227,7 +218,7 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     this.#attachHandlers();
     this.#address = this.#socket.address().address;
     this.#port = this.#socket.address().port;
-    this.emit("socket:ready");
+    this.emit("ready");
   }
   async #stop() {
     clearInterval(this.#gcIntervalId);
@@ -251,18 +242,13 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     }
   }
   #attachHandlers() {
-    this.#socket.on("close", this.#handleSocketClose);
     this.#socket.on("error", this.#handleSocketError);
     this.#socket.on("message", this.#handleSocketMessage);
   }
   #detachHandlers() {
-    this.#socket.off("close", this.#handleSocketClose);
     this.#socket.off("error", this.#handleSocketError);
     this.#socket.off("message", this.#handleSocketMessage);
   }
-  #handleSocketClose = () => {
-    this.emit("socket:close");
-  };
   #handleSocketError = (error) => {
     this.destroy(error);
   };
@@ -291,7 +277,11 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     for (const [id, payload] of this.#collector) {
       if (payload[1] + this.#gcExpirationTime < dateNow) {
         this.#collector.delete(id);
-        this.emit("socket:missing", { message: "missing data", id, date: payload[2] });
+        this.emit("warning", {
+          message: "missing_message",
+          id,
+          date: payload[2]
+        });
       }
     }
   };
@@ -304,8 +294,7 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
       error.ctx = {
         originMessage,
         date,
-        id,
-        body
+        id
       };
       this.emit("warning", error);
     }
@@ -320,7 +309,7 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     }
     const message = this.#formatMessage(deserializedBody, date, id);
     this.#addMessage(message);
-    this.emit("socket:message", message);
+    this.emit("message", message, { body: deserializedBody, date, id });
   }
 };
 var socket_default = UDPLoggerSocket;
@@ -336,7 +325,6 @@ var UDPLoggerWriter = class extends import_node_stream2.Writable {
   #filePath;
   #encoding;
   #flags;
-  #options;
   #fd;
   #watcher;
   constructor({
@@ -352,7 +340,6 @@ var UDPLoggerWriter = class extends import_node_stream2.Writable {
     this.#encoding = encoding;
     this.#filePath = import_node_path.default.resolve(this.#dirName, this.#fileName);
     this.#flags = flags;
-    this.#options = options;
   }
   _construct(callback) {
     this.#open().then(() => {
@@ -515,10 +502,10 @@ var UDPLoggerServer = class extends import_node_events3.EventEmitter {
     this.socket = new socket_default(this.#options);
     this.writer = new writer_default(this.#options);
     this.socket.pipe(this.writer);
-    this.socket.on("error", this.handleError);
-    this.writer.on("error", this.handleError);
-    this.socket.on("warning", this.handleWarning);
-    this.socket.on("socket:missing", this.handleWarning);
+    this.socket.on("error", this.#handleError);
+    this.writer.on("error", this.#handleError);
+    this.socket.on("socket:warning", this.#handleWarning);
+    this.socket.on("socket:missing", this.#handleWarning);
     await Promise.all([
       import_node_events3.EventEmitter.once(this.socket, "socket:ready"),
       import_node_events3.EventEmitter.once(this.writer, "writer:ready")
@@ -526,17 +513,17 @@ var UDPLoggerServer = class extends import_node_events3.EventEmitter {
     this.emit("ready");
     return this;
   }
-  handleError = (error) => {
+  #handleError = (error) => {
     this.emit("error", error);
   };
-  handleWarning = (warning) => {
+  #handleWarning = (warning) => {
     this.emit("warning", warning);
   };
   async stop() {
-    this.socket.off("error", this.handleError);
-    this.writer.off("error", this.handleError);
-    this.socket.off("warning", this.handleWarning);
-    this.socket.off("socket:missing", this.handleWarning);
+    this.socket.off("error", this.#handleError);
+    this.writer.off("error", this.#handleError);
+    this.socket.off("socket:warning", this.#handleWarning);
+    this.socket.off("socket:missing", this.#handleWarning);
     this.socket.push(null);
     await Promise.all([
       import_node_events3.EventEmitter.once(this.socket, "close"),
@@ -549,9 +536,10 @@ var UDPLoggerServer = class extends import_node_events3.EventEmitter {
 var server_default = UDPLoggerServer;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  DEFAULT_MESSAGE_FORMATTER,
+  DEFAULT_PORT,
   UDPLoggerClient,
   UDPLoggerServer,
   UDPLoggerSocket,
-  UDPLoggerWriter,
-  constants
+  UDPLoggerWriter
 });
