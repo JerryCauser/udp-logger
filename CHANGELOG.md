@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.5.0](https://github.com/JerryCauser/udp-logger/compare/v0.4.0...v0.5.0) (2022-07-14)
+
+
+### Features
+
+* add sync/async behavior on client ([b1b8d0f](https://github.com/JerryCauser/udp-logger/commit/b1b8d0f23dadef44fb65ae071e36ef3c34f1baa6))
+* detach encoding function and add possibility to pass encode/decode functions instead of algo names ([a6087e2](https://github.com/JerryCauser/udp-logger/commit/a6087e2cfc44739a5e5d1afbbe185e78b3ee55c1))
+
 ## [0.4.0](https://github.com/JerryCauser/udp-logger/compare/v0.3.0...v0.4.0) (2022-05-18)
 
 
