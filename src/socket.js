@@ -78,6 +78,9 @@ class UDPLoggerSocket extends Readable {
   /** @type {function (Buffer):void} */
   #handleSocketMessage
 
+  /**
+   * @param {UDPLoggerSocketOptions} [options]
+   */
   constructor ({
     type = 'udp4',
     port = DEFAULT_PORT,
@@ -85,9 +88,9 @@ class UDPLoggerSocket extends Readable {
     decryption,
     deserializer = DEFAULT_DESERIALIZER,
     formatMessage = DEFAULT_MESSAGE_FORMATTER,
-    ...options
+    ...readableOptions
   } = {}) {
-    super(options)
+    super({ ...readableOptions })
 
     this.#port = port
     this.#deserializer = deserializer
@@ -96,7 +99,7 @@ class UDPLoggerSocket extends Readable {
 
     if (decryption) {
       if (typeof decryption === 'string') {
-        this.#decryptionSecret = Buffer.from(decryption)
+        this.#decryptionSecret = Buffer.from(decryption, 'hex')
 
         this.#decryptionFunction = (data) =>
           DEFAULT_DECRYPT_FUNCTION(data, this.#decryptionSecret)
@@ -305,7 +308,7 @@ class UDPLoggerSocket extends Readable {
       bodyBuffered = [...body.values()][0]
     }
 
-    const deserializedBody = this.#deserializer(Buffer.concat(bodyBuffered))
+    const deserializedBody = this.#deserializer(bodyBuffered)
     const message = this.#formatMessage(deserializedBody, date, id)
 
     this.#addMessage(message)

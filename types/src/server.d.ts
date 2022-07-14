@@ -5,10 +5,12 @@ export default UDPLoggerServer
 // @ts-expect-error
 export interface UDPLoggerServerOptions
   extends UDPLoggerSocketOptions,
-  UDPLoggerWriterOptions {}
+  UDPLoggerWriterOptions {
+  filePath?: string
+}
 
 declare class UDPLoggerServer {
-  constructor (options: UDPLoggerServerOptions)
+  constructor (options?: UDPLoggerServerOptions)
   socket: UDPLoggerSocket
   writer: UDPLoggerWriter
   start (): Promise<UDPLoggerServer>

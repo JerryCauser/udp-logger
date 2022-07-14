@@ -45,8 +45,7 @@ export const logger = new UDPLoggerClient({ encryption: '11223344556677889900aab
 import { UDPLoggerServer } from 'udp-logger'
 
 const server = new UDPLoggerServer({
-  dirName: '/var/logs/my-app',
-  fileName: 'my-app.log',
+  filePath: './my-app.log',
   decryption: '11223344556677889900aabbccddeeff'
 })
 
@@ -124,13 +123,12 @@ Extends [`EventEmitter`][node-eventemitter]
 It is a simple wrapper around [`UDPLoggerSocket`][socket] and [`UDPLoggerWriter`][writer] created to simplify rapid start
 
 #### Arguments:
-- `options` `<object>` – **required**
-  - `dirName` `<string>` – **required**. Folder where will be created log file.
-  - `fileName` `<string>` – optional. **Default** `'udp-port-${port}.log'`,
+- `options` `<object>` – optional
+  - `filePath` `<string>` – optional. Supports absolute and relative paths. If passed relative path then will use `process.cwd()` as a base path. **Default** `./udp-port-${port}.log`
   - `encoding` `<string>` — optional. Encoding for writer to your disk. **Default** `'utf8'`,
-  - `flags` `string` – optional. More info about flags you can check on [NodeJS File System Flags][node-file-system-flags]. **Default** `'a'`
+  - `flags` `<string>` – optional. More info about flags you can check on [NodeJS File System Flags][node-file-system-flags]. **Default** `'a'`
   - `type` `<'udp4' | 'udp6'>` – optional. **Default** `'udp4'`
-  - `port` `<string | number>` – optional. **Default** `44002`
+  - `port` `<string> | <number>` – optional. **Default** `44002`
   - `host` `<string>` – optional **Default** `'127.0.0.1'` or `'::1'`
   - `decryption` `<string> | <(payload: Buffer) => Buffer>` – optional. For more details check [UDPLoggerSocket Arguments Section][socket] **Default** `undefined`
   - `deserializer` `<(payload: Buffer) => any>` - optional. For more details check [UDPLoggerSocket Arguments Section][socket] **Default** `v8.deserialize`
@@ -155,8 +153,7 @@ It is a simple wrapper around [`UDPLoggerSocket`][socket] and [`UDPLoggerWriter`
 import { UDPLoggerServer } from 'udp-logger'
 
 const server = new UDPLoggerServer({
-  dirName: '/var/logs/my-app',
-  fileName: 'my-app.log',
+  filePath: './my-app.log',
   port: 44002,
   // decryption: (buf) => buf.map(byte => byte ^ 83) // not safe at all, but better than nothing
   decryption: '11223344556677889900aabbccddeeff'
@@ -237,7 +234,7 @@ for await (const message of socket) {
 import { UDPLoggerSocket, UDPLoggerWriter } from 'udp-logger'
 
 const socket = new UDPLoggersocket()
-const writer = new UDPLoggerWriter({ dirName: '/var/logs/my-app', fileName: 'my-app.log' })
+const writer = new UDPLoggerWriter({ filePath: './my-app.log' })
 
 socket.pipe(writer)
 ```
@@ -262,9 +259,8 @@ Extends [`Writable` Stream][node-writable]
 
 #### Arguments:
 - `options` `<object>` – **required**
-  - `dirName` `<string>` – **required**. Folder where will be created log file.
-  - `fileName` `<string>` – optional. **Default** `'udp-port-${port}.log'`,
-  - `encoding` `<string>` — optional. Encoding for writer to your disk. **Default** `'utf8'`,
+  - `filePath` `<string>` – **required**. Supports absolute and relative paths. If passed relative path then will use `process.cwd()` as a base path
+  - `encoding` `<string>` — optional. Encoding for writer to your disk. **Default** `'utf8'`
   - `flags` `string` – optional. More info about flags you can check on [NodeJS File System Flags][node-file-system-flags]. **Default** `'a'`
 
 #### Events:
@@ -278,7 +274,7 @@ Extends [`Writable` Stream][node-writable]
 import { UDPLoggerSocket, UDPLoggerWriter } from 'udp-logger'
 
 const socket = new UDPLoggersocket()
-const writer = new UDPLoggerWriter({ dirName: '/var/logs/my-app', fileName: 'my-app.log' })
+const writer = new UDPLoggerWriter({ filePath: './my-app.log' })
 
 socket.pipe(writer)
 ```

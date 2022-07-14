@@ -1,15 +1,15 @@
-import path from 'node:path'
 import fs from 'node:fs'
+import path from 'node:path'
 import { Writable } from 'node:stream'
 
 const EVENT_RENAME = 'rename'
 
 /**
  * @typedef {object} UDPLoggerWriterOptions
- * @property {string} options.dirName
- * @property {string} options.fileName
- * @property {string} [options.encoding='utf8']
- * @property {string} [options.flags='a']
+ * @property {string} filePath supports absolute and relative paths.
+ *            If passed relative path then will use process.cwd() as a base path
+ * @property {string} [encoding='utf8']
+ * @property {string} [flags='a']
  *
  * @extends {WritableOptions}
  */
@@ -19,9 +19,9 @@ const EVENT_RENAME = 'rename'
  * @constructor
  */
 class UDPLoggerWriter extends Writable {
-  #dirName
-  #fileName
   #filePath
+  #fileName
+  #dir
   #encoding
 
   #flags
@@ -29,26 +29,35 @@ class UDPLoggerWriter extends Writable {
   #fd
   #watcher
 
+  /**
+   * @param {UDPLoggerWriterOptions} options
+   */
   constructor ({
-    dirName,
-    fileName,
+    filePath,
     encoding = 'utf8',
     flags = 'a',
-    ...options
+    ...writableOptions
   } = {}) {
-    super({ ...options })
+    super({ ...writableOptions })
 
-    this.#dirName = dirName
-    this.#fileName = fileName
+    this.#filePath = path.resolve(process.cwd(), filePath)
+    console.log(path.parse(this.#filePath))
+    this.#fileName = path.parse(this.#filePath).base
+    this.#dir = path.parse(this.#filePath).dir
     this.#encoding = encoding
-    this.#filePath = path.resolve(this.#dirName, this.#fileName)
     this.#flags = flags
+
+    console.log({
+      filePath: this.#filePath,
+      fileName: this.#fileName,
+      dir: this.#dir
+    })
   }
 
   _construct (callback) {
     this.#open()
       .then(() => {
-        this.#watcher = fs.watch(this.#dirName, this.#watchRename)
+        this.#watcher = fs.watch(this.#dir, this.#watchRename)
         this.emit('ready')
         callback(null)
       })
@@ -89,6 +98,13 @@ class UDPLoggerWriter extends Writable {
   }
 
   /**
+   * @returns {string}
+   */
+  get filePath () {
+    return this.#filePath
+  }
+
+  /**
    * @returns {Promise<null>}
    */
   async #open () {
@@ -122,7 +138,7 @@ class UDPLoggerWriter extends Writable {
    */
   #watchRename = async (event, fileName) => {
     if (event === EVENT_RENAME && fileName === this.#fileName) {
-      if (!fs.existsSync(this.#filePath)) {
+      if (!fs.existsSync(this.#fileName)) {
         this.cork()
         await this.#close()
         await this.#open()

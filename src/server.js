@@ -13,10 +13,10 @@ class UDPLoggerServer extends EventEmitter {
   socket
   writer
 
-  constructor (options) {
+  constructor (options = {}) {
     super(options)
 
-    options.fileName ??= `udp-port-${options.port || DEFAULT_PORT}.log`
+    options.filePath ??= `./udp-port-${options.port || DEFAULT_PORT}.log`
 
     this.#options = options
   }

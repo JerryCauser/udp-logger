@@ -7,4 +7,6 @@ export function setChunkMetaInfo (
   index: number
 ): void
 export function parseId (buffer: Buffer): [Date, string, number, number]
-export const ID_SIZE: 16
+export const DATE_SIZE: number
+export const SEED_SIZE: number
+export const ID_SIZE: number

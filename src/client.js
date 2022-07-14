@@ -57,7 +57,7 @@ class UDPLoggerClient extends EventEmitter {
   #socket
 
   /**
-   * @param {UDPLoggerClientOptions?} [options]
+   * @param {UDPLoggerClientOptions} [options]
    */
   constructor ({
     type = 'udp4',
@@ -67,9 +67,9 @@ class UDPLoggerClient extends EventEmitter {
     isAsync = false,
     encryption,
     serializer = DEFAULT_SERIALIZER,
-    ...other
+    ...eventEmitterOptions
   } = {}) {
-    super(other)
+    super({ ...eventEmitterOptions })
 
     this.#port = port
     this.#host = host
@@ -82,7 +82,7 @@ class UDPLoggerClient extends EventEmitter {
     if (encryption) {
       if (typeof encryption === 'string') {
         this.#packetSize = packetSize - IV_SIZE
-        this.#encryptionSecret = Buffer.from(encryption)
+        this.#encryptionSecret = Buffer.from(encryption, 'hex')
 
         this.#encryptionFunction = (data) =>
           DEFAULT_ENCRYPT_FUNCTION(data, this.#encryptionSecret)
