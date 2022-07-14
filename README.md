@@ -53,6 +53,8 @@ const server = new UDPLoggerServer({
 await server.start()
 ```
 
+After just start the logger server `node logger-server.js` and start your app `node app.js`. That's all! Everything is working just fine, and you saved the world 🎉
+
 ## Description
 
 ### class `UDPLoggerClient`
