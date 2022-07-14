@@ -41,17 +41,10 @@ class UDPLoggerWriter extends Writable {
     super({ ...writableOptions })
 
     this.#filePath = path.resolve(process.cwd(), filePath)
-    console.log(path.parse(this.#filePath))
     this.#fileName = path.parse(this.#filePath).base
     this.#dir = path.parse(this.#filePath).dir
     this.#encoding = encoding
     this.#flags = flags
-
-    console.log({
-      filePath: this.#filePath,
-      fileName: this.#fileName,
-      dir: this.#dir
-    })
   }
 
   _construct (callback) {
