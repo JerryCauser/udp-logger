@@ -43,6 +43,7 @@ class UDPLoggerWriter extends Writable {
     this.#filePath = path.resolve(process.cwd(), filePath)
     this.#fileName = path.parse(this.#filePath).base
     this.#dir = path.parse(this.#filePath).dir
+
     this.#encoding = encoding
     this.#flags = flags
   }

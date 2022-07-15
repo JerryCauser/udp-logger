@@ -160,13 +160,13 @@ class UDPLoggerClient extends EventEmitter {
    * @returns {Buffer}
    */
   #markChunk (id, total, index, chunk) {
-    const marked = Buffer.alloc(chunk.length + ID_SIZE)
+    const resultChunk = Buffer.alloc(chunk.length + ID_SIZE)
 
-    marked.set(id, 0)
-    setChunkMetaInfo(marked, total, index)
-    marked.set(chunk, ID_SIZE)
+    resultChunk.set(id, 0)
+    setChunkMetaInfo(resultChunk, total, index)
+    resultChunk.set(chunk, ID_SIZE)
 
-    return marked
+    return resultChunk
   }
 }
 
