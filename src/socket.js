@@ -57,7 +57,7 @@ class UDPLoggerSocket extends Readable {
   /** @type {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} */
   #formatMessage
 
-  /** @type {Map<string, [logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string, logTotal:number]>} data */
+  /** @type {Map<string, [logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string]>} data */
   #collector = new Map()
 
   /** @type {number} */
@@ -227,16 +227,16 @@ class UDPLoggerSocket extends Readable {
   #handlePlainMessage = (buffer) => {
     const [date, id, total, index] = parseId(buffer.subarray(0, ID_SIZE))
 
-    /** @type {[logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string, logTotal:number]} */
+    /** @type {[logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string]} */
     let data = this.#collector.get(id)
     if (!data) {
-      data = [new Map(), Date.now(), date, id, total]
+      data = [new Map(), Date.now(), date, id]
       this.#collector.set(id, data)
     }
 
     data[0].set(index, buffer.subarray(ID_SIZE))
 
-    if (data[0].size === total) {
+    if (data[0].size === total + 1) {
       this.#collector.delete(id)
       this.#compileMessage(data[0], data[2], data[3])
     }

@@ -127,7 +127,7 @@ class UDPLoggerClient extends EventEmitter {
    * @param {Buffer} id
    */
   #send = (payload, id) => {
-    const total = Math.ceil(payload.length / this.#packetSize)
+    const total = Math.ceil(payload.length / this.#packetSize) - 1
 
     for (let i = 0; i < payload.length; i += this.#packetSize) {
       let chunk = this.#markChunk(
