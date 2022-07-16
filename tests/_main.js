@@ -1,24 +1,32 @@
 import identifierTests from './identifier.test.js'
 import constantsTest from './constants.test.js'
+import clientTest from './client.test.js'
+import serverTest from './server.test.js'
 /**
  * sequence:
  *  [x] identifier
  *  [x] defaults
- *  [] client
+ *  [x] client
  *  [] socket
  *  [] writer
- *  [] server
+ *  [x] server
  */
 
 export default async function _main (type, {
   identifier,
-  constants
+  constants,
+  UDPLoggerClient,
+  UDPLoggerSocket,
+  UDPLoggerWriter,
+  UDPLoggerServer
 }) {
-  console.log(`${type} Tests Started`)
+  console.log(`${type} Tests Started\n`)
   let errorsCount = 0
 
   errorsCount += await identifierTests(identifier)
   errorsCount += await constantsTest(constants)
+  errorsCount += await clientTest(UDPLoggerClient, identifier)
+  errorsCount += await serverTest(UDPLoggerServer)
 
   if (errorsCount === 0) console.log('All tests passed')
   else throw new Error(`Not all tests are passed. FAILED tests: ${errorsCount}`)
@@ -33,11 +41,11 @@ export const tryCountErrorHook = () => {
       const call = fn()
 
       if (call?.then) {
-        await call()
+        await call
       }
     } catch (e) {
       ++obj.count
-      console.error(e.message)
+      console.error(e)
     }
   }
 

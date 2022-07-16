@@ -170,9 +170,9 @@ async function identifierTests ({
   await errors.try(testSynergy)
 
   if (errors.count === 0) {
-    console.log('All test for identifier.js passed')
+    console.log('[identifier.js] All test for passed\n')
   } else {
-    console.log(`identifier.js has ${errors.count} errors`)
+    console.log(`[identifier.js] Has ${errors.count} errors`)
   }
 
   return errors.count

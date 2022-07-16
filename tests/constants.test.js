@@ -1,9 +1,8 @@
-
-/** TODO here we need to check if encryption and decryption works */
-
 import crypto from 'node:crypto'
 import assert from 'node:assert'
 import { tryCountErrorHook } from './_main.js'
+
+/** [x] here we need to check if encryption and decryption works */
 
 async function constantsTests ({
   DEFAULT_SERIALIZER,
@@ -87,9 +86,9 @@ async function constantsTests ({
   await errors.try(testFormat)
 
   if (errors.count === 0) {
-    console.log('All test for constants.js passed')
+    console.log('[constants.js] All test for  passed\n')
   } else {
-    console.log(`constants.js has ${errors.count} errors`)
+    console.log(`[constants.js] Has ${errors.count} errors`)
   }
 
   return errors.count

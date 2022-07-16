@@ -133,7 +133,7 @@ class UDPLoggerClient extends EventEmitter {
       let chunk = this.#markChunk(
         id,
         total,
-        i,
+        i / this.#packetSize,
         payload.subarray(i, i + this.#packetSize)
       )
 
