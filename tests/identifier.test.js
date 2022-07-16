@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import assert from 'node:assert'
+import { tryCountErrorHook } from './_main.js'
 
 /** here we need just to check functions
  * [x] generateId() return correct size
@@ -161,32 +162,20 @@ async function identifierTests ({
     console.log(`${caseAlias} passed`)
   }
 
-  let errorCount = 0
-  const tryCountError = async (fn) => {
-    try {
-      const call = fn()
+  const errors = tryCountErrorHook()
 
-      if (call?.then) {
-        await call()
-      }
-    } catch (e) {
-      ++errorCount
-      console.error(e)
-    }
-  }
+  await errors.try(testGenerateId)
+  await errors.try(testSetChunkMetaInfo)
+  await errors.try(testParseId)
+  await errors.try(testSynergy)
 
-  await tryCountError(testGenerateId)
-  await tryCountError(testSetChunkMetaInfo)
-  await tryCountError(testParseId)
-  await tryCountError(testSynergy)
-
-  if (errorCount === 0) {
+  if (errors.count === 0) {
     console.log('All test for identifier.js passed')
   } else {
-    console.log(`identifier.js has ${errorCount} errors`)
+    console.log(`identifier.js has ${errors.count} errors`)
   }
 
-  return errorCount
+  return errors.count
 }
 
 export default identifierTests
