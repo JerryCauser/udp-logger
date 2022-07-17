@@ -5,7 +5,8 @@ import assert from 'node:assert'
 import { tryCountErrorHook } from './_main.js'
 
 /**
- *  Just test events `ready` and `close`
+ * [x] Just test events `ready` and `close`
+ * [x] don't forget to remove created log file
  */
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))

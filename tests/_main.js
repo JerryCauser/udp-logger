@@ -2,6 +2,8 @@ import identifierTests from './identifier.test.js'
 import constantsTest from './constants.test.js'
 import clientTest from './client.test.js'
 import serverTest from './server.test.js'
+import writerTest from './writer.test.js'
+
 /**
  * sequence:
  *  [x] identifier
@@ -26,6 +28,11 @@ export default async function _main (type, {
   errorsCount += await identifierTests(identifier)
   errorsCount += await constantsTest(constants)
   errorsCount += await clientTest(UDPLoggerClient, identifier)
+  errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'hex')
+  errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'buffer')
+  errorsCount += await writerTest(UDPLoggerWriter, 'buffer', 'hex')
+  errorsCount += await writerTest(UDPLoggerWriter, 'buffer', 'buffer')
+  errorsCount += await writerTest(UDPLoggerWriter)
   errorsCount += await serverTest(UDPLoggerServer)
 
   if (errorsCount === 0) console.log('All tests passed')
