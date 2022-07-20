@@ -4,7 +4,7 @@ import path from 'node:path'
 import assert from 'node:assert'
 import crypto from 'node:crypto'
 import { once } from 'node:events'
-import { tryCountErrorHook } from './_main.js'
+import { tryCountErrorHook, assertTry } from './_main.js'
 import UDPLoggerWriter from '../src/writer.js'
 
 /** here we need to create writer instance
@@ -17,14 +17,41 @@ import UDPLoggerWriter from '../src/writer.js'
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url))
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-async function writerTest (_, encoding = 'utf8', dataType = 'hex') {
+/**
+ * @param {string[]} paths
+ * @returns {Promise<void>}
+ */
+async function unlinkAllWithEnsure (paths) {
+  await Promise.allSettled(paths.map(path => fs.promises.unlink(path)))
+
+  for (let i = 0; i < 20; ++i) {
+    if (paths.some(path => fs.existsSync(path))) {
+      await delay(10)
+    } else {
+      break
+    }
+  }
+}
+
+/**
+ *
+ * @param {UDPLoggerWriter} _
+ * @param {string|undefined} encoding
+ * @param {'buffer'|'string'} dataType
+ * @returns {Promise<number>}
+ */
+async function writerTest (_, encoding = 'utf8', dataType = 'string') {
   const alias = `  writer.js:${encoding}:${dataType}: `
 
   const filePath = path.resolve(__dirname, 'test-file.log')
   const filePathRotated = filePath + '.old'
 
-  await fs.promises.unlink(filePath).catch(() => {})
-  await fs.promises.unlink(filePathRotated).catch(() => {})
+  await unlinkAllWithEnsure([filePath, filePathRotated])
+
+  const readFileOptions = {}
+  if (dataType !== 'buffer') {
+    readFileOptions.encoding = encoding
+  }
 
   async function testBasic () {
     const caseAlias = `${alias} basic tests ->`
@@ -33,11 +60,17 @@ async function writerTest (_, encoding = 'utf8', dataType = 'hex') {
      * @returns {string|Buffer}
      */
     const encodeData = (data) => {
-      if (!Buffer.isBuffer(data)) data = decodeData(data)
+      if (dataType === 'buffer') {
+        if (Buffer.isBuffer(data)) return data
 
-      if (dataType === 'buffer') return data
+        return Buffer.from(data, 'base64')
+      }
 
-      return data.toString(dataType)
+      if (dataType === 'string') {
+        if (typeof data === 'string') return data
+
+        return data.toString(encoding)
+      }
     }
 
     /**
@@ -45,21 +78,22 @@ async function writerTest (_, encoding = 'utf8', dataType = 'hex') {
      * @returns {Buffer|string}
      */
     const decodeData = (data) => {
-      if (Buffer.isBuffer(data)) data = encodeData(data)
+      if (typeof data === 'string') return data
 
-      if (dataType === 'buffer') return data
-
-      return Buffer.from(data, dataType)
+      return data.toString('base64')
     }
 
     const write = data => {
       writer.write(encodeData(data))
     }
 
+    const read = path => {
+      return fs.readFileSync(path)
+    }
+
     const writer = new UDPLoggerWriter({ filePath, encoding })
 
     const data = [
-      crypto.randomBytes(128),
       crypto.randomBytes(128),
       crypto.randomBytes(128),
       crypto.randomBytes(128),
@@ -71,6 +105,7 @@ async function writerTest (_, encoding = 'utf8', dataType = 'hex') {
     let started = 0
     let closed = 0
     const unexpectedErrors = []
+    const results = { fails: [] }
 
     writer.on('error', err => {
       unexpectedErrors.push(err)
@@ -82,25 +117,25 @@ async function writerTest (_, encoding = 'utf8', dataType = 'hex') {
     write(data[0])
     await delay(10)
 
-    const dataAfterFirstWrite = fs.readFileSync(filePath, { encoding })
+    const dataAfterFirstWrite = read(filePath)
 
-    assert.deepStrictEqual(
+    assertTry(() => assert.deepStrictEqual(
       decodeData(dataAfterFirstWrite),
       decodeData(data[0]),
       `${caseAlias} data after FIRST writing isn't as expected`
-    )
+    ), results)
 
     write(data[1])
     await delay(20)
 
-    const dataAfterSecondWrite = fs.readFileSync(filePath, { encoding })
+    const dataAfterSecondWrite = read(filePath)
     const oneAndTwoData = data[0] + data[1]
 
-    assert.deepStrictEqual(
+    assertTry(() => assert.deepStrictEqual(
       decodeData(dataAfterSecondWrite),
       decodeData(oneAndTwoData),
       `${caseAlias} data after SECOND writing isn't as expected`
-    )
+    ), results)
 
     // RENAMING
 
@@ -112,59 +147,59 @@ async function writerTest (_, encoding = 'utf8', dataType = 'hex') {
 
     await delay(10)
 
-    const dataAfterRotateOld = fs.readFileSync(filePathRotated, { encoding })
+    const dataAfterRotateOld = read(filePathRotated)
     const oneTwoThreeData = data[0] + data[1] + data[2]
 
-    assert.deepStrictEqual(
+    assertTry(() => assert.deepStrictEqual(
       decodeData(dataAfterRotateOld),
       decodeData(oneTwoThreeData),
       `${caseAlias} data in ROTATED file after THIRD writing isn't as expected`
-    )
+    ), results)
 
-    const dataAfterRotate = fs.readFileSync(filePath, { encoding })
+    const dataAfterRotate = read(filePath)
     const fourData = data[3]
 
-    assert.deepStrictEqual(
+    assertTry(() => assert.deepStrictEqual(
       decodeData(dataAfterRotate),
       decodeData(fourData),
       `${caseAlias} data in NEW file after THIRD writing isn't as expected`
-    )
+    ), results)
 
     // REMOVING
 
     fs.unlinkSync(filePath)
-    write(data[4]) // it should cork file or something. but right now it should raise error
 
     await once(writer, 'reopen')
-    write(data[5])
+    write(data[4])
 
     await delay(10)
 
-    const dataAfterRemove = fs.readFileSync(filePath, { encoding })
-    const fiveSixData = data[4] + data[5]
+    const dataAfterRemove = read(filePath)
+    const fiveSixData = data[4]
 
-    assert.deepStrictEqual(
+    assertTry(() => assert.deepStrictEqual(
       decodeData(dataAfterRemove),
       decodeData(fiveSixData),
       `${caseAlias} data after REMOVE file isn't as expected`
-    )
+    ), results)
 
     // ENDING
 
     writer.end()
-    await delay(10)
+    await once(writer, 'close')
+    await delay(5)
 
-    assert.strictEqual(
+    assertTry(() => assert.strictEqual(
       started,
       1,
       `${caseAlias} writer not started`
-    )
+    ), results)
 
-    assert.strictEqual(
+    assertTry(() => assert.strictEqual(
       closed,
       1,
       `${caseAlias} writer not closed`
-    )
+    ), results)
 
     if (unexpectedErrors.length > 0) {
       const error = new Error(`There are some unexpected errors. Number: ${unexpectedErrors}`)
@@ -174,15 +209,22 @@ async function writerTest (_, encoding = 'utf8', dataType = 'hex') {
       throw error
     }
 
-    console.log(`${caseAlias} passed`)
+    if (results.fails.length > 0) {
+      const error = new Error(`${caseAlias} failed some tests: Number: ${results.fails.length}. Check ctx for description`)
+
+      Object.assign(error, results)
+
+      throw error
+    } else {
+      console.log(`${caseAlias} passed`)
+    }
   }
 
   const errors = tryCountErrorHook()
 
   await errors.try(testBasic)
 
-  await fs.promises.unlink(filePath).catch(() => {})
-  await fs.promises.unlink(filePathRotated).catch(() => {})
+  await unlinkAllWithEnsure([filePath, filePathRotated])
 
   if (errors.count === 0) {
     console.log('[writer.js] All test for passed\n')

@@ -13,10 +13,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 async function serverTest (UDPLoggerServer) {
   const alias = '  server.js:'
+  const filePath = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), `test-file-${Math.random()}.log`)
 
   async function testBasic () {
     const caseAlias = `${alias} server basic tests ->`
-    const filePath = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), `test-file-${Math.random()}.log`)
     const server = new UDPLoggerServer({
       filePath,
       port: 45003
@@ -50,14 +50,14 @@ async function serverTest (UDPLoggerServer) {
       `${caseAlias} log file not exists`
     )
 
-    fs.unlinkSync(filePath)
-
     console.log(`${caseAlias} passed`)
   }
 
   const errors = tryCountErrorHook()
 
   await errors.try(testBasic)
+
+  fs.promises.unlink(filePath).catch(() => {})
 
   if (errors.count === 0) {
     console.log('[server.js] All test for passed\n')

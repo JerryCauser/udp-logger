@@ -60,7 +60,7 @@ class UDPLoggerServer extends EventEmitter {
     this.writer.off('error', this.#handleError)
     this.socket.off('warning', this.#handleWarning)
 
-    this.socket.push(null)
+    this.socket.push(null) // it will cause ending of readable and after writable stream
 
     await Promise.all([
       EventEmitter.once(this.socket, 'close'),

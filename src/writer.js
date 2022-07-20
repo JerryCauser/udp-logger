@@ -34,6 +34,8 @@ class UDPLoggerWriter extends Writable {
 
   #isPerforming = false
 
+  #bytesWritten = 0
+
   /**
    * @param {UDPLoggerWriterOptions} options
    */
@@ -82,8 +84,8 @@ class UDPLoggerWriter extends Writable {
   _write (chunk, encoding, callback) {
     this.#isPerforming = true
 
-    const fn = (error) => {
-      if (error) { console.log('<WRITE ERROR>', { error }) }
+    const fn = (error, bytesWritten) => {
+      this.#bytesWritten += bytesWritten
       this.#isPerforming = false
 
       if (this.destroyed) {
@@ -97,10 +99,8 @@ class UDPLoggerWriter extends Writable {
     }
 
     if (typeof chunk === 'string') {
-      // console.log('str')
       fs.write(this.#fd, chunk, undefined, this.#encoding, fn)
     } else {
-      // console.log('buff')
       fs.write(this.#fd, chunk, fn)
     }
   }
@@ -121,7 +121,8 @@ class UDPLoggerWriter extends Writable {
 
     this.#isPerforming = true
 
-    const fn = (error) => {
+    const fn = (error, bytesWritten) => {
+      this.#bytesWritten += bytesWritten
       this.#isPerforming = false
 
       if (this.destroyed) {
@@ -144,8 +145,18 @@ class UDPLoggerWriter extends Writable {
     return this.#filePath
   }
 
+  /**
+   * @returns {null|number}
+   */
   get fd () {
     return this.#fd
+  }
+
+  /**
+   * @returns {number}
+   */
+  get bytesWritten () {
+    return this.#bytesWritten
   }
 
   /**
@@ -182,9 +193,10 @@ class UDPLoggerWriter extends Writable {
       if (this.#fd === null) return reject(error)
 
       fs.close(this.#fd, (err) => {
+        this.#fd = null
+
         if (err) return reject(err)
 
-        this.#fd = null
         resolve(null)
       })
     })

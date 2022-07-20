@@ -28,10 +28,10 @@ export default async function _main (type, {
   errorsCount += await identifierTests(identifier)
   errorsCount += await constantsTest(constants)
   errorsCount += await clientTest(UDPLoggerClient, identifier)
-  errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'hex')
-  errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'buffer')
-  errorsCount += await writerTest(UDPLoggerWriter, 'buffer', 'hex')
-  errorsCount += await writerTest(UDPLoggerWriter, 'buffer', 'buffer')
+  // errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'string')
+  // errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'buffer')
+  // errorsCount += await writerTest(UDPLoggerWriter, 'buffer', 'string')
+  // errorsCount += await writerTest(UDPLoggerWriter, 'buffer', 'buffer')
   errorsCount += await writerTest(UDPLoggerWriter)
   errorsCount += await serverTest(UDPLoggerServer)
 
@@ -62,4 +62,16 @@ export const tryCountErrorHook = () => {
   }
 
   return obj
+}
+
+/**
+ * @param {function} fn
+ * @param {object} obj
+ */
+export const assertTry = (fn, obj) => {
+  try {
+    fn()
+  } catch (e) {
+    obj.fails.push(e)
+  }
 }
