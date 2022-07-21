@@ -36,12 +36,12 @@ async function unlinkAllWithEnsure (paths) {
 /**
  *
  * @param {UDPLoggerWriter} _
- * @param {string|undefined} encoding
+ * @param {string|undefined|null} encoding
  * @param {'buffer'|'string'} dataType
  * @returns {Promise<number>}
  */
 async function writerTest (_, encoding = 'utf8', dataType = 'string') {
-  const alias = `  writer.js:${encoding}:${dataType}: `
+  const alias = `  writer.js:${encoding || 'null'}:${dataType}: `
 
   const filePath = path.resolve(__dirname, 'test-file.log')
   const filePathRotated = filePath + '.old'
@@ -55,52 +55,53 @@ async function writerTest (_, encoding = 'utf8', dataType = 'string') {
 
   async function testBasic () {
     const caseAlias = `${alias} basic tests ->`
-    /**
-     * @param {Buffer|string} data - should be buffer
-     * @returns {string|Buffer}
-     */
-    const encodeData = (data) => {
-      if (dataType === 'buffer') {
-        if (Buffer.isBuffer(data)) return data
-
-        return Buffer.from(data, 'base64')
-      }
-
-      if (dataType === 'string') {
-        if (typeof data === 'string') return data
-
-        return data.toString(encoding)
-      }
-    }
-
-    /**
-     * @param {string|Buffer} data - should be string
-     * @returns {Buffer|string}
-     */
-    const decodeData = (data) => {
-      if (typeof data === 'string') return data
-
-      return data.toString('base64')
-    }
-
-    const write = data => {
-      writer.write(encodeData(data))
-    }
-
-    const read = path => {
-      return fs.readFileSync(path)
-    }
-
-    const writer = new UDPLoggerWriter({ filePath, encoding })
-
-    const data = [
+    const binData = [
       crypto.randomBytes(128),
       crypto.randomBytes(128),
       crypto.randomBytes(128),
       crypto.randomBytes(128),
       crypto.randomBytes(128),
       crypto.randomBytes(128)
-    ].map(n => encodeData(n))
+    ]
+    const data = binData.map(n => {
+      if (dataType === 'string') return n.toString('base64')
+
+      return n
+    })
+
+    /**
+     * @param {string[]|Buffer[]} items
+     * @returns {string|Buffer}
+     */
+    const concatData = (items) => {
+      if (Buffer.isBuffer(items[0])) return Buffer.concat(items)
+
+      return items.reduce((acc, el) => {
+        acc += el
+
+        return acc
+      }, '')
+    }
+
+    const write = data => {
+      writer.write(data)
+    }
+
+    const read = path => {
+      const fileData = fs.readFileSync(path, readFileOptions)
+
+      if (dataType === 'string' && Buffer.isBuffer(fileData)) {
+        return fileData.toString(encoding || 'utf8')
+      }
+
+      if (dataType === 'buffer' && !Buffer.isBuffer(fileData)) {
+        return Buffer.from(fileData, encoding)
+      }
+
+      return fileData
+    }
+
+    const writer = new UDPLoggerWriter({ filePath, encoding })
 
     let started = 0
     let closed = 0
@@ -120,8 +121,8 @@ async function writerTest (_, encoding = 'utf8', dataType = 'string') {
     const dataAfterFirstWrite = read(filePath)
 
     assertTry(() => assert.deepStrictEqual(
-      decodeData(dataAfterFirstWrite),
-      decodeData(data[0]),
+      dataAfterFirstWrite,
+      data[0],
       `${caseAlias} data after FIRST writing isn't as expected`
     ), results)
 
@@ -129,11 +130,11 @@ async function writerTest (_, encoding = 'utf8', dataType = 'string') {
     await delay(20)
 
     const dataAfterSecondWrite = read(filePath)
-    const oneAndTwoData = data[0] + data[1]
+    const oneAndTwoData = concatData([data[0], data[1]])
 
     assertTry(() => assert.deepStrictEqual(
-      decodeData(dataAfterSecondWrite),
-      decodeData(oneAndTwoData),
+      dataAfterSecondWrite,
+      oneAndTwoData,
       `${caseAlias} data after SECOND writing isn't as expected`
     ), results)
 
@@ -148,11 +149,11 @@ async function writerTest (_, encoding = 'utf8', dataType = 'string') {
     await delay(10)
 
     const dataAfterRotateOld = read(filePathRotated)
-    const oneTwoThreeData = data[0] + data[1] + data[2]
+    const oneTwoThreeData = concatData([data[0], data[1], data[2]])
 
     assertTry(() => assert.deepStrictEqual(
-      decodeData(dataAfterRotateOld),
-      decodeData(oneTwoThreeData),
+      dataAfterRotateOld,
+      oneTwoThreeData,
       `${caseAlias} data in ROTATED file after THIRD writing isn't as expected`
     ), results)
 
@@ -160,8 +161,8 @@ async function writerTest (_, encoding = 'utf8', dataType = 'string') {
     const fourData = data[3]
 
     assertTry(() => assert.deepStrictEqual(
-      decodeData(dataAfterRotate),
-      decodeData(fourData),
+      dataAfterRotate,
+      fourData,
       `${caseAlias} data in NEW file after THIRD writing isn't as expected`
     ), results)
 
@@ -178,8 +179,8 @@ async function writerTest (_, encoding = 'utf8', dataType = 'string') {
     const fiveSixData = data[4]
 
     assertTry(() => assert.deepStrictEqual(
-      decodeData(dataAfterRemove),
-      decodeData(fiveSixData),
+      dataAfterRemove,
+      fiveSixData,
       `${caseAlias} data after REMOVE file isn't as expected`
     ), results)
 
@@ -211,6 +212,8 @@ async function writerTest (_, encoding = 'utf8', dataType = 'string') {
 
     if (results.fails.length > 0) {
       const error = new Error(`${caseAlias} failed some tests: Number: ${results.fails.length}. Check ctx for description`)
+
+      error.data = data
 
       Object.assign(error, results)
 
