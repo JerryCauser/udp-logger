@@ -74,7 +74,7 @@ class UDPLoggerClient extends EventEmitter {
     this.#port = port
     this.#host = host
     this.#type = type
-    this.#packetSize = packetSize - ID_SIZE
+    this.#packetSize = packetSize - ID_SIZE // max 65507 - ID_SIZE
 
     this.#isAsync = isAsync
     this.#serializer = serializer

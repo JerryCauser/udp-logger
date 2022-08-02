@@ -10,7 +10,7 @@ import writerTest from './writer.test.js'
  *  [x] defaults
  *  [x] client
  *  [] socket
- *  [] writer
+ *  [x] writer
  *  [x] server
  */
 
@@ -28,6 +28,7 @@ export default async function _main (type, {
   errorsCount += await identifierTests(identifier)
   errorsCount += await constantsTest(constants)
   errorsCount += await clientTest(UDPLoggerClient, identifier)
+  // errorsCount += await socketTest(UDPLoggerSocket, identifier, constants) // TODO
   errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'string')
   errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'buffer')
   errorsCount += await writerTest(UDPLoggerWriter, null, 'string')
@@ -72,5 +73,26 @@ export const assertTry = (fn, obj) => {
     fn()
   } catch (e) {
     obj.fails.push(e)
+  }
+}
+
+/**
+ * @param {{fails:Error[]|object[]}} results
+ * @param {string} caseAlias
+ * @param {any?} ctx
+ */
+export const checkResults = (results, caseAlias, ctx) => {
+  if (results.fails.length > 0) {
+    const error = new Error(
+      `${caseAlias} failed some tests: Number: ${results.fails.length}. Check description`
+    )
+
+    if (ctx) error.data = ctx
+
+    Object.assign(error, results)
+
+    throw error
+  } else {
+    console.log(`${caseAlias} passed`)
   }
 }

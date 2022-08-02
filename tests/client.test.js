@@ -118,6 +118,9 @@ async function clientTest (UDPLoggerClient, identifier) {
     assert.strictEqual(msgTwoTotal, 1, `${caseAlias} Message Two total isn't same as expected`)
     assert.strictEqual(msgTwoIndex, 1, `${caseAlias} Message Two index isn't same as expected`)
 
+    assert.deepStrictEqual(id1, id2, `${caseAlias} All chunks should share same ID`)
+    assert.deepStrictEqual(msgOneDate, msgTwoDate, `${caseAlias} All chunks should share same Date`)
+
     assert.deepStrictEqual(
       Buffer.concat([
         socket.messages[0].subarray(ID_SIZE),

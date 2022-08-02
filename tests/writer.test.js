@@ -4,8 +4,7 @@ import path from 'node:path'
 import assert from 'node:assert'
 import crypto from 'node:crypto'
 import { once } from 'node:events'
-import { tryCountErrorHook, assertTry } from './_main.js'
-import UDPLoggerWriter from '../src/writer.js'
+import { tryCountErrorHook, assertTry, checkResults } from './_main.js'
 
 /** here we need to create writer instance
  * [x] simple write test
@@ -35,12 +34,12 @@ async function unlinkAllWithEnsure (paths) {
 
 /**
  *
- * @param {UDPLoggerWriter} _
+ * @param {UDPLoggerWriter} UDPLoggerWriter
  * @param {string|undefined|null} encoding
  * @param {'buffer'|'string'} dataType
  * @returns {Promise<number>}
  */
-async function writerTest (_, encoding = 'utf8', dataType = 'string') {
+async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'string') {
   const alias = `  writer.js:${encoding || 'null'}:${dataType}: `
 
   const filePath = path.resolve(__dirname, 'test-file.log')
@@ -210,17 +209,7 @@ async function writerTest (_, encoding = 'utf8', dataType = 'string') {
       throw error
     }
 
-    if (results.fails.length > 0) {
-      const error = new Error(`${caseAlias} failed some tests: Number: ${results.fails.length}. Check ctx for description`)
-
-      error.data = data
-
-      Object.assign(error, results)
-
-      throw error
-    } else {
-      console.log(`${caseAlias} passed`)
-    }
+    checkResults(results, caseAlias, { data })
   }
 
   const errors = tryCountErrorHook()
