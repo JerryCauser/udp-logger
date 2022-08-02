@@ -183,6 +183,8 @@ It is a UDP socket in `readable stream` form.
   - `deserializer` `<(payload: Buffer) => any>` - optional. **Default** `v8.deserialize`
     - Used v8.deserialize, but you could use something like [bson][js-bson], or great [avsc][avsc] if you could make all your logs are perfectly typed. Or you even can use `JSON.stringify/JSON.parse` if your logs are simple. It will be faster than v8 serialize/deserialize. Check this [Binary serialization comparison][javascript-serialization-benchmark], it is cool.
   - `formatMessage` `<(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array>`  - optional. **Default** `DEFAULT_MESSAGE_FORMATTER` from constants
+  - `gcIntervalTime` `<number>` — optional. How often instance will check internal buffer to delete expired messages (in ms). **Default** `5000` 
+  - `gcExpirationTime` `<number>`— optional. How long chunks can await all missing chunks in internal buffer (in ms). **Default** `10000`
 
 #### Fields:
 - `port`: `<number>`

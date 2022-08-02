@@ -16,7 +16,11 @@ export interface UDPLoggerSocketOptions extends ReadableOptions {
     data: any,
     date: Date,
     id: number | string
-  ) => string | Buffer | Uint8Array
+  ) => string | Buffer | Uint8Array,
+  /** how often instance will check internal buffer to delete expired messages */
+  gcIntervalTime?: number,
+  /** how long chunks can await all missing chunks in internal buffer */
+  gcExpirationTime?: number
 }
 
 declare class UDPLoggerSocket extends Readable {

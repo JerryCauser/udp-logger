@@ -9,11 +9,14 @@ import { tryCountErrorHook } from './_main.js'
  * [x] don't forget to remove created log file
  */
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function serverTest (UDPLoggerServer) {
   const alias = '  server.js:'
-  const filePath = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), `test-file-${Math.random()}.log`)
+  const filePath = path.resolve(
+    path.dirname(url.fileURLToPath(import.meta.url)),
+    `test-file-${Math.random()}.log`
+  )
 
   async function testBasic () {
     const caseAlias = `${alias} server basic tests ->`
@@ -28,27 +31,13 @@ async function serverTest (UDPLoggerServer) {
     server.once('ready', () => ++started)
     server.once('close', () => ++closed)
 
-    await Promise.race([
-      delay(1000),
-      server.start().then(() => server.stop())
-    ])
+    await Promise.race([delay(1000), server.start().then(() => server.stop())])
 
-    assert.strictEqual(
-      started,
-      1,
-      `${caseAlias} server not started`
-    )
+    assert.strictEqual(started, 1, `${caseAlias} server not started`)
 
-    assert.strictEqual(
-      closed,
-      1,
-      `${caseAlias} server not closed`
-    )
+    assert.strictEqual(closed, 1, `${caseAlias} server not closed`)
 
-    assert.ok(
-      fs.existsSync(filePath),
-      `${caseAlias} log file not exists`
-    )
+    assert.ok(fs.existsSync(filePath), `${caseAlias} log file not exists`)
 
     console.log(`${caseAlias} passed`)
   }

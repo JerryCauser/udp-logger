@@ -58,7 +58,7 @@ const createUDPClient = async () => {
 async function socketTest (_) {
   const alias = '  socket.js: '
 
-  const port = 45003
+  const defaultPort = 45003
   const defaultSerializer = (buf) => buf
   const defaultDeserializer = (buf) => buf
   const defaultFormatMessage = (buf) => buf
@@ -67,28 +67,21 @@ async function socketTest (_) {
   const BIG_PACKET_SIZE = 300
 
   /**
-   * @param {object} options
-   * @param {number} options.port
-   * @param {string|function?} options.decryption
+   * @param {UDPLoggerSocketOptions} options
    * @param {function?} options.deserializer
    * @param {function?} options.formatMessage
    * @returns {Promise<UDPLoggerSocket & {messages:Buffer[], stop: Function<Promise<void>>}>}
    */
   const createUDPSocket = async ({
-    port,
-    packetSize,
-    type = 'udp4',
-    decryption,
+    port = defaultPort,
     deserializer = defaultDeserializer,
-    formatMessage = defaultFormatMessage
+    formatMessage = defaultFormatMessage,
+    ...opts
   } = {}) => {
     const socket = new UDPLoggerSocket({
-      port,
-      type,
-      packetSize,
+      ...opts,
       deserializer,
-      formatMessage,
-      decryption
+      formatMessage
     })
 
     const error = await Promise.race([
@@ -118,7 +111,10 @@ async function socketTest (_) {
     const results = { fails: [] }
 
     const client = await createUDPClient()
-    const socket = createUDPSocket({ port, packetSize: SMALL_PACKET_SIZE })
+    const socket = createUDPSocket({
+      port: defaultPort,
+      packetSize: SMALL_PACKET_SIZE
+    })
     const payload = crypto.randomBytes(SMALL_PACKET_SIZE)
 
     const dateNow = Date.now()
@@ -127,7 +123,7 @@ async function socketTest (_) {
     payload.writeUintBE(dateNow, 0, DATE_SIZE)
     setChunkMetaInfo(payload, 0, 0)
 
-    client.send(payload, port)
+    client.send(payload, defaultPort)
 
     await delay(5)
 
@@ -206,7 +202,10 @@ async function socketTest (_) {
     const results = { fails: [] }
 
     const client = await createUDPClient()
-    const socket = createUDPSocket({ port, packetSize: BIG_PACKET_SIZE })
+    const socket = createUDPSocket({
+      port: defaultPort,
+      packetSize: BIG_PACKET_SIZE
+    })
     const payload1 = crypto.randomBytes(BIG_PACKET_SIZE)
     const payload2 = crypto.randomBytes(BIG_PACKET_SIZE)
 
@@ -221,9 +220,9 @@ async function socketTest (_) {
     payload2.writeUintBE(dateNow, 0, DATE_SIZE)
     setChunkMetaInfo(payload2, 1, 1)
 
-    client.send(payload1, port)
+    client.send(payload1, defaultPort)
     await delay(0)
-    client.send(payload2, port)
+    client.send(payload2, defaultPort)
 
     await delay(5)
 

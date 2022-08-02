@@ -14,14 +14,17 @@ import writerTest from './writer.test.js'
  *  [x] server
  */
 
-export default async function _main (type, {
-  identifier,
-  constants,
-  UDPLoggerClient,
-  UDPLoggerSocket,
-  UDPLoggerWriter,
-  UDPLoggerServer
-}) {
+export default async function _main (
+  type,
+  {
+    identifier,
+    constants,
+    UDPLoggerClient,
+    UDPLoggerSocket,
+    UDPLoggerWriter,
+    UDPLoggerServer
+  }
+) {
   console.log(`${type} Tests Started\n`)
   let errorsCount = 0
 
@@ -36,7 +39,7 @@ export default async function _main (type, {
   errorsCount += await serverTest(UDPLoggerServer)
 
   if (errorsCount === 0) console.log('All tests passed')
-  else throw new Error(`Not all tests are passed. FAILED tests: ${errorsCount}`)
+  else { throw new Error(`Not all tests are passed. FAILED tests: ${errorsCount}`) }
 }
 
 /**

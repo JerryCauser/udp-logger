@@ -13,14 +13,16 @@ import { tryCountErrorHook } from './_main.js'
  * [x] index and total should be correct
  */
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
  * @param {number} port
  * @returns {Promise<Socket & {messages:Buffer[], stop: (() => Promise<void>)}>}
  */
 const createUDPSocket = async (port) => {
-  const socket = Object.create(dgram.createSocket({ type: 'udp4', reuseAddr: true }))
+  const socket = Object.create(
+    dgram.createSocket({ type: 'udp4', reuseAddr: true })
+  )
   socket.bind(port, '127.0.0.1')
 
   const error = await Promise.race([
@@ -50,7 +52,11 @@ async function clientTest (UDPLoggerClient, identifier) {
   async function testClientSmall () {
     const caseAlias = `${alias} client sending small message ->`
     const socket = await createUDPSocket(45002)
-    const client = new UDPLoggerClient({ port: 45002, packetSize: 300, serializer: ([buf]) => buf })
+    const client = new UDPLoggerClient({
+      port: 45002,
+      packetSize: 300,
+      serializer: ([buf]) => buf
+    })
     const payload = crypto.randomBytes(300 - ID_SIZE)
 
     await once(client, 'ready')
@@ -67,15 +73,27 @@ async function clientTest (UDPLoggerClient, identifier) {
     )
 
     // eslint-disable-next-line no-unused-vars
-    const [messageDate, id, total, index] = parseId(socket.messages[0].subarray(0, ID_SIZE))
+    const [messageDate, id, total, index] = parseId(
+      socket.messages[0].subarray(0, ID_SIZE)
+    )
 
     assert.ok(
       messageDate >= dateBeforeSent && messageDate <= Date.now(),
-      `${caseAlias} Message date invalid ${new Date().toISOString()} but should be ${new Date(dateBeforeSent).toISOString()}±5ms`
+      `${caseAlias} Message date invalid ${new Date().toISOString()} but should be ${new Date(
+        dateBeforeSent
+      ).toISOString()}±5ms`
     )
 
-    assert.strictEqual(total, 0, `${caseAlias} Message total isn't same as expected`)
-    assert.strictEqual(index, 0, `${caseAlias} Message index isn't same as expected`)
+    assert.strictEqual(
+      total,
+      0,
+      `${caseAlias} Message total isn't same as expected`
+    )
+    assert.strictEqual(
+      index,
+      0,
+      `${caseAlias} Message index isn't same as expected`
+    )
 
     assert.deepStrictEqual(
       socket.messages[0].subarray(ID_SIZE),
@@ -91,7 +109,11 @@ async function clientTest (UDPLoggerClient, identifier) {
   async function testClientLarge () {
     const caseAlias = `${alias} client sending large message ->`
     const socket = await createUDPSocket(45003)
-    const client = new UDPLoggerClient({ port: 45003, packetSize: 300, serializer: ([buf]) => buf })
+    const client = new UDPLoggerClient({
+      port: 45003,
+      packetSize: 300,
+      serializer: ([buf]) => buf
+    })
     const payload = crypto.randomBytes((300 - ID_SIZE) * 2)
 
     await once(client, 'ready')
@@ -107,19 +129,47 @@ async function clientTest (UDPLoggerClient, identifier) {
     )
 
     // eslint-disable-next-line no-unused-vars
-    const [msgOneDate, id1, msgOneTotal, msgOneIndex] = parseId(socket.messages[0].subarray(0, ID_SIZE))
+    const [msgOneDate, id1, msgOneTotal, msgOneIndex] = parseId(
+      socket.messages[0].subarray(0, ID_SIZE)
+    )
 
-    assert.strictEqual(msgOneTotal, 1, `${caseAlias} Message One total isn't same as expected`)
-    assert.strictEqual(msgOneIndex, 0, `${caseAlias} Message One index isn't same as expected`)
+    assert.strictEqual(
+      msgOneTotal,
+      1,
+      `${caseAlias} Message One total isn't same as expected`
+    )
+    assert.strictEqual(
+      msgOneIndex,
+      0,
+      `${caseAlias} Message One index isn't same as expected`
+    )
 
     // eslint-disable-next-line no-unused-vars
-    const [msgTwoDate, id2, msgTwoTotal, msgTwoIndex] = parseId(socket.messages[1].subarray(0, ID_SIZE))
+    const [msgTwoDate, id2, msgTwoTotal, msgTwoIndex] = parseId(
+      socket.messages[1].subarray(0, ID_SIZE)
+    )
 
-    assert.strictEqual(msgTwoTotal, 1, `${caseAlias} Message Two total isn't same as expected`)
-    assert.strictEqual(msgTwoIndex, 1, `${caseAlias} Message Two index isn't same as expected`)
+    assert.strictEqual(
+      msgTwoTotal,
+      1,
+      `${caseAlias} Message Two total isn't same as expected`
+    )
+    assert.strictEqual(
+      msgTwoIndex,
+      1,
+      `${caseAlias} Message Two index isn't same as expected`
+    )
 
-    assert.deepStrictEqual(id1, id2, `${caseAlias} All chunks should share same ID`)
-    assert.deepStrictEqual(msgOneDate, msgTwoDate, `${caseAlias} All chunks should share same Date`)
+    assert.deepStrictEqual(
+      id1,
+      id2,
+      `${caseAlias} All chunks should share same ID`
+    )
+    assert.deepStrictEqual(
+      msgOneDate,
+      msgTwoDate,
+      `${caseAlias} All chunks should share same Date`
+    )
 
     assert.deepStrictEqual(
       Buffer.concat([

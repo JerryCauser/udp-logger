@@ -21,6 +21,8 @@ import {
  *    if passed nothing - will not use any kind of encryption
  * @property {(payload: Buffer) => any} [deserializer]
  * @property {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} [formatMessage]
+ * @property {number?} [gcIntervalTime=5_000] how often instance will check internal buffer to delete expired messages
+ * @property {number?} [gcExpirationTime=10_000] how long chunks can await all missing chunks in internal buffer
  *
  * @extends {ReadableOptions}
  */
@@ -64,10 +66,10 @@ class UDPLoggerSocket extends Readable {
   #gcIntervalId
 
   /** @type {number} */
-  #gcIntervalTime = 5000
+  #gcIntervalTime
 
   /** @type {number} */
-  #gcExpirationTime = 10000
+  #gcExpirationTime
 
   /** @type {boolean} */
   #allowPush = true
@@ -88,6 +90,8 @@ class UDPLoggerSocket extends Readable {
     decryption,
     deserializer = DEFAULT_DESERIALIZER,
     formatMessage = DEFAULT_MESSAGE_FORMATTER,
+    gcIntervalTime = 5000,
+    gcExpirationTime = 10000,
     ...readableOptions
   } = {}) {
     super({ ...readableOptions })
@@ -96,6 +100,9 @@ class UDPLoggerSocket extends Readable {
     this.#deserializer = deserializer
     this.#formatMessage = formatMessage
     this.#type = type
+
+    this.#gcIntervalTime = gcIntervalTime
+    this.#gcExpirationTime = gcExpirationTime
 
     if (decryption) {
       if (typeof decryption === 'string') {

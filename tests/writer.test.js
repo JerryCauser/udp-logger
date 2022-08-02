@@ -14,17 +14,17 @@ import { tryCountErrorHook, assertTry, checkResults } from './_main.js'
  */
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url))
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
  * @param {string[]} paths
  * @returns {Promise<void>}
  */
 async function unlinkAllWithEnsure (paths) {
-  await Promise.allSettled(paths.map(path => fs.promises.unlink(path)))
+  await Promise.allSettled(paths.map((path) => fs.promises.unlink(path)))
 
   for (let i = 0; i < 20; ++i) {
-    if (paths.some(path => fs.existsSync(path))) {
+    if (paths.some((path) => fs.existsSync(path))) {
       await delay(10)
     } else {
       break
@@ -39,7 +39,11 @@ async function unlinkAllWithEnsure (paths) {
  * @param {'buffer'|'string'} dataType
  * @returns {Promise<number>}
  */
-async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'string') {
+async function writerTest (
+  UDPLoggerWriter,
+  encoding = 'utf8',
+  dataType = 'string'
+) {
   const alias = `  writer.js:${encoding || 'null'}:${dataType}: `
 
   const filePath = path.resolve(__dirname, 'test-file.log')
@@ -62,7 +66,7 @@ async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'strin
       crypto.randomBytes(128),
       crypto.randomBytes(128)
     ]
-    const data = binData.map(n => {
+    const data = binData.map((n) => {
       if (dataType === 'string') return n.toString('base64')
 
       return n
@@ -82,11 +86,11 @@ async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'strin
       }, '')
     }
 
-    const write = data => {
+    const write = (data) => {
       writer.write(data)
     }
 
-    const read = path => {
+    const read = (path) => {
       const fileData = fs.readFileSync(path, readFileOptions)
 
       if (dataType === 'string' && Buffer.isBuffer(fileData)) {
@@ -107,7 +111,7 @@ async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'strin
     const unexpectedErrors = []
     const results = { fails: [] }
 
-    writer.on('error', err => {
+    writer.on('error', (err) => {
       unexpectedErrors.push(err)
     })
 
@@ -119,11 +123,15 @@ async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'strin
 
     const dataAfterFirstWrite = read(filePath)
 
-    assertTry(() => assert.deepStrictEqual(
-      dataAfterFirstWrite,
-      data[0],
-      `${caseAlias} data after FIRST writing isn't as expected`
-    ), results)
+    assertTry(
+      () =>
+        assert.deepStrictEqual(
+          dataAfterFirstWrite,
+          data[0],
+          `${caseAlias} data after FIRST writing isn't as expected`
+        ),
+      results
+    )
 
     write(data[1])
     await delay(20)
@@ -131,11 +139,15 @@ async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'strin
     const dataAfterSecondWrite = read(filePath)
     const oneAndTwoData = concatData([data[0], data[1]])
 
-    assertTry(() => assert.deepStrictEqual(
-      dataAfterSecondWrite,
-      oneAndTwoData,
-      `${caseAlias} data after SECOND writing isn't as expected`
-    ), results)
+    assertTry(
+      () =>
+        assert.deepStrictEqual(
+          dataAfterSecondWrite,
+          oneAndTwoData,
+          `${caseAlias} data after SECOND writing isn't as expected`
+        ),
+      results
+    )
 
     // RENAMING
 
@@ -150,20 +162,28 @@ async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'strin
     const dataAfterRotateOld = read(filePathRotated)
     const oneTwoThreeData = concatData([data[0], data[1], data[2]])
 
-    assertTry(() => assert.deepStrictEqual(
-      dataAfterRotateOld,
-      oneTwoThreeData,
-      `${caseAlias} data in ROTATED file after THIRD writing isn't as expected`
-    ), results)
+    assertTry(
+      () =>
+        assert.deepStrictEqual(
+          dataAfterRotateOld,
+          oneTwoThreeData,
+          `${caseAlias} data in ROTATED file after THIRD writing isn't as expected`
+        ),
+      results
+    )
 
     const dataAfterRotate = read(filePath)
     const fourData = data[3]
 
-    assertTry(() => assert.deepStrictEqual(
-      dataAfterRotate,
-      fourData,
-      `${caseAlias} data in NEW file after THIRD writing isn't as expected`
-    ), results)
+    assertTry(
+      () =>
+        assert.deepStrictEqual(
+          dataAfterRotate,
+          fourData,
+          `${caseAlias} data in NEW file after THIRD writing isn't as expected`
+        ),
+      results
+    )
 
     // REMOVING
 
@@ -177,11 +197,15 @@ async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'strin
     const dataAfterRemove = read(filePath)
     const fiveSixData = data[4]
 
-    assertTry(() => assert.deepStrictEqual(
-      dataAfterRemove,
-      fiveSixData,
-      `${caseAlias} data after REMOVE file isn't as expected`
-    ), results)
+    assertTry(
+      () =>
+        assert.deepStrictEqual(
+          dataAfterRemove,
+          fiveSixData,
+          `${caseAlias} data after REMOVE file isn't as expected`
+        ),
+      results
+    )
 
     // ENDING
 
@@ -189,20 +213,20 @@ async function writerTest (UDPLoggerWriter, encoding = 'utf8', dataType = 'strin
     await once(writer, 'close')
     await delay(5)
 
-    assertTry(() => assert.strictEqual(
-      started,
-      1,
-      `${caseAlias} writer not started`
-    ), results)
+    assertTry(
+      () => assert.strictEqual(started, 1, `${caseAlias} writer not started`),
+      results
+    )
 
-    assertTry(() => assert.strictEqual(
-      closed,
-      1,
-      `${caseAlias} writer not closed`
-    ), results)
+    assertTry(
+      () => assert.strictEqual(closed, 1, `${caseAlias} writer not closed`),
+      results
+    )
 
     if (unexpectedErrors.length > 0) {
-      const error = new Error(`There are some unexpected errors. Number: ${unexpectedErrors}`)
+      const error = new Error(
+        `There are some unexpected errors. Number: ${unexpectedErrors}`
+      )
 
       error.list = unexpectedErrors
 
