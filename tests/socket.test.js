@@ -70,7 +70,7 @@ async function socketTest (_) {
    * @param {UDPLoggerSocketOptions} options
    * @param {function?} options.deserializer
    * @param {function?} options.formatMessage
-   * @returns {Promise<UDPLoggerSocket & {messages:Buffer[], stop: Function<Promise<void>>}>}
+   * @returns {Promise<UDPLoggerSocket & {messages:Buffer[], stop: (() => Promise<void>)}>}
    */
   const createUDPSocket = async ({
     port = defaultPort,
@@ -96,7 +96,7 @@ async function socketTest (_) {
 
     if (error instanceof Error) throw Error
 
-    /** @type {Function<Promise<void>>} */
+    /** @type {(() => Promise<void>)} */
     socket.stop = async () => {
       socket.removeAllListeners()
       socket.close()
@@ -106,24 +106,84 @@ async function socketTest (_) {
     return socket
   }
 
+  function checkMessage (caseAlias, message, results, {
+    id,
+    date,
+    total,
+    index,
+    payload
+  }) {
+    // eslint-disable-next-line no-unused-vars
+    const [messageDate, messageId, messageTotal, messageIndex] = parseId(message.subarray(0, ID_SIZE))
+
+    assertTry(
+      () =>
+        assert.strictEqual(
+          messageDate.getTime(),
+          date,
+          `${caseAlias} Message date invalid`
+        ),
+      results
+    )
+
+    assertTry(
+      () =>
+        assert.deepStrictEqual(
+          messageId,
+          id,
+          `${caseAlias} Message ID invalid`
+        ),
+      results
+    )
+
+    assertTry(
+      () =>
+        assert.strictEqual(
+          messageTotal,
+          total,
+          `${caseAlias} Message total isn't same as expected`
+        ),
+      results
+    )
+    assertTry(
+      () =>
+        assert.strictEqual(
+          messageIndex,
+          index,
+          `${caseAlias} Message index isn't same as expected`
+        ),
+      results
+    )
+
+    assertTry(
+      () =>
+        assert.deepStrictEqual(
+          message.subarray(ID_SIZE),
+          payload,
+          `${caseAlias} received message should be the same as sent one`
+        ),
+      results
+    )
+  }
+
   async function testSocketSmall () {
     const caseAlias = `${alias} sending small message ->`
     const results = { fails: [] }
 
     const client = await createUDPClient()
-    const socket = createUDPSocket({
+    const socket = await createUDPSocket({
       port: defaultPort,
       packetSize: SMALL_PACKET_SIZE
     })
-    const payload = crypto.randomBytes(SMALL_PACKET_SIZE)
+    const chunk = crypto.randomBytes(SMALL_PACKET_SIZE)
 
     const dateNow = Date.now()
     const payloadId = generateId()
-    payload.set(payloadId, 0)
-    payload.writeUintBE(dateNow, 0, DATE_SIZE)
-    setChunkMetaInfo(payload, 0, 0)
+    payloadId.writeUintBE(dateNow, 0, DATE_SIZE)
+    chunk.set(payloadId, 0)
+    setChunkMetaInfo(chunk, 0, 0)
 
-    client.send(payload, defaultPort)
+    client.send(chunk, defaultPort)
 
     await delay(5)
 
@@ -137,59 +197,13 @@ async function socketTest (_) {
       results
     )
 
-    // eslint-disable-next-line no-unused-vars
-    const [messageDate, __id, total, index] = parseId(
-      socket.messages[0].subarray(0, ID_SIZE)
-    )
-
-    assertTry(
-      () =>
-        assert.strictEqual(
-          messageDate.getTime(),
-          dateNow,
-          `${caseAlias} Message date invalid`
-        ),
-      results
-    )
-
-    assertTry(
-      () =>
-        assert.deepStrictEqual(
-          __id,
-          payloadId,
-          `${caseAlias} Message ID invalid`
-        ),
-      results
-    )
-
-    assertTry(
-      () =>
-        assert.strictEqual(
-          total,
-          0,
-          `${caseAlias} Message total isn't same as expected`
-        ),
-      results
-    )
-    assertTry(
-      () =>
-        assert.strictEqual(
-          index,
-          0,
-          `${caseAlias} Message index isn't same as expected`
-        ),
-      results
-    )
-
-    assertTry(
-      () =>
-        assert.deepStrictEqual(
-          socket.messages[0].subarray(ID_SIZE),
-          payload,
-          `${caseAlias} received message should be the same as sent one`
-        ),
-      results
-    )
+    checkMessage(caseAlias, socket.messages[0], results, {
+      id: payloadId,
+      date: dateNow,
+      total: 0,
+      index: 0,
+      payload: chunk.subarray(ID_SIZE)
+    })
 
     await Promise.all([socket.stop(), client.stop()])
 
@@ -202,27 +216,26 @@ async function socketTest (_) {
     const results = { fails: [] }
 
     const client = await createUDPClient()
-    const socket = createUDPSocket({
+    const socket = await createUDPSocket({
       port: defaultPort,
       packetSize: BIG_PACKET_SIZE
     })
-    const payload1 = crypto.randomBytes(BIG_PACKET_SIZE)
-    const payload2 = crypto.randomBytes(BIG_PACKET_SIZE)
+    const chunk1 = crypto.randomBytes(BIG_PACKET_SIZE)
+    const chunk2 = crypto.randomBytes(BIG_PACKET_SIZE)
 
     const dateNow = Date.now()
     const payloadId = generateId()
+    payloadId.writeUintBE(dateNow, 0, DATE_SIZE)
 
-    payload1.set(payloadId, 0)
-    payload1.writeUintBE(dateNow, 0, DATE_SIZE)
-    setChunkMetaInfo(payload1, 1, 0)
+    chunk1.set(payloadId, 0)
+    setChunkMetaInfo(chunk1, 1, 0)
 
-    payload2.set(payloadId, 0)
-    payload2.writeUintBE(dateNow, 0, DATE_SIZE)
-    setChunkMetaInfo(payload2, 1, 1)
+    chunk2.set(payloadId, 0)
+    setChunkMetaInfo(chunk2, 1, 1)
 
-    client.send(payload1, defaultPort)
+    client.send(chunk1, defaultPort)
     await delay(0)
-    client.send(payload2, defaultPort)
+    client.send(chunk2, defaultPort)
 
     await delay(5)
 
@@ -236,112 +249,136 @@ async function socketTest (_) {
       results
     )
 
-    // eslint-disable-next-line no-unused-vars
-    const [messageDate1, id1, total1, index1] = parseId(
-      socket.messages[0].subarray(0, ID_SIZE)
-    )
+    checkMessage(caseAlias, socket.messages[0], results, {
+      id: payloadId,
+      date: dateNow,
+      total: 1,
+      index: 0,
+      payload: chunk1.subarray(ID_SIZE)
+    })
 
-    assertTry(
-      () =>
-        assert.strictEqual(
-          total1,
-          1,
-          `${caseAlias} Message One total isn't as expected`
-        ),
-      results
-    )
-    assertTry(
-      () =>
-        assert.strictEqual(
-          index1,
-          0,
-          `${caseAlias} Message One index isn't as expected`
-        ),
-      results
-    )
-
-    const [messageDate2, id2, total2, index2] = parseId(
-      socket.messages[1].subarray(0, ID_SIZE)
-    )
-
-    assertTry(
-      () =>
-        assert.strictEqual(
-          total2,
-          1,
-          `${caseAlias} Message Two total isn't as expected`
-        ),
-      results
-    )
-    assertTry(
-      () =>
-        assert.strictEqual(
-          index2,
-          1,
-          `${caseAlias} Message Two index isn't as expected`
-        ),
-      results
-    )
-
-    assertTry(
-      () =>
-        assert.strictEqual(
-          messageDate1.getTime(),
-          dateNow,
-          `${caseAlias} Message date invalid`
-        ),
-      results
-    )
-
-    assertTry(
-      () =>
-        assert.strictEqual(
-          messageDate2.getTime(),
-          messageDate1.getTime(),
-          `${caseAlias} Message dates for all chunks should be the same`
-        ),
-      results
-    )
-
-    assertTry(
-      () =>
-        assert.strictEqual(
-          id1,
-          id2,
-          `${caseAlias} Message IDs for all chunks should be the same`
-        ),
-      results
-    )
-
-    assertTry(
-      () =>
-        assert.deepStrictEqual(
-          socket.messages[0].subarray(ID_SIZE),
-          payload1,
-          `${caseAlias} received Message One should be the same as sent one`
-        ),
-      results
-    )
-
-    assertTry(
-      () =>
-        assert.deepStrictEqual(
-          socket.messages[1].subarray(ID_SIZE),
-          payload2,
-          `${caseAlias} received Message One should be the same as sent one`
-        ),
-      results
-    )
+    checkMessage(caseAlias, socket.messages[1], results, {
+      id: payloadId,
+      date: dateNow,
+      total: 1,
+      index: 1,
+      payload: chunk2.subarray(ID_SIZE)
+    })
 
     await Promise.all([socket.stop(), client.stop()])
 
     checkResults(results, caseAlias)
   }
 
+  async function testSocketWarning () {
+    const caseAlias = `${alias} handling compile warning ->`
+    const results = { fails: [] }
+
+    const jsonData = { a: '1234567890', b: 1, c: true, d: { a: -1 }, e: [0, 'b'], f: null }
+
+    /**
+     * @param {any} obj
+     * @returns {Buffer}
+     */
+    const serializer = (obj) => {
+      return Buffer.from(JSON.stringify(jsonData), 'utf8')
+    }
+
+    /**
+     * @param {Buffer} buf
+     * @returns {any}
+     */
+    const deserializer = (buf) => {
+      return JSON.parse(buf.toString('utf8'))
+    }
+
+    const client = await createUDPClient()
+    const socket = await createUDPSocket({
+      gcExpirationTime: 10,
+      gcIntervalTime: 5,
+      deserializer,
+      port: defaultPort,
+      packetSize: SMALL_PACKET_SIZE
+    })
+
+    const dateNow = Date.now()
+    const payloadId = generateId()
+    payloadId.writeUintBE(dateNow, 0, DATE_SIZE)
+
+    const dataIncorrect = serializer(jsonData).subarray(0, -1)
+    const chunkIncorrect = Buffer.concat([payloadId, dataIncorrect])
+    setChunkMetaInfo(chunkIncorrect, 0, 0)
+
+    let compileWarningAppeared = false
+
+    socket.once('warning', error => {
+      if (error.message === 'compile_message_error') {
+        compileWarningAppeared = true
+      }
+    })
+
+    client.send(chunkIncorrect, defaultPort)
+
+    await Promise.race([
+      delay(5),
+      once(socket, 'warning')
+    ])
+
+    assertTry(
+      () =>
+        assert.strictEqual(
+          socket.messages.length,
+          0,
+          `${caseAlias} messages length invalid`
+        ),
+      results
+    )
+
+    assertTry(
+      () =>
+        assert.strictEqual(
+          compileWarningAppeared,
+          true,
+          `${caseAlias} Incorrect message should raise compile warning`
+        ),
+      results
+    )
+
+    const dataCorrect = serializer(jsonData)
+    const chunkCorrect = Buffer.concat([payloadId, dataCorrect])
+    setChunkMetaInfo(chunkCorrect, 0, 0)
+
+    await delay(5)
+
+    assertTry(
+      () =>
+        assert.strictEqual(
+          socket.messages.length,
+          1,
+          `${caseAlias} messages length invalid`
+        ),
+      results
+    )
+
+    checkMessage(caseAlias, socket.messages[0], results, {
+      id: payloadId,
+      date: dateNow,
+      total: 0,
+      index: 0,
+      payload: dataCorrect
+    })
+
+    await Promise.all([socket.stop(), client.stop()])
+
+    checkResults(results, caseAlias)
+    console.log(`${caseAlias} passed`)
+  }
+
   const errors = tryCountErrorHook()
 
   await errors.try(testSocketSmall)
   await errors.try(testSocketLarge)
+  await errors.try(testSocketWarning)
 
   if (errors.count === 0) {
     console.log('[socket.js] All test for passed\n')
