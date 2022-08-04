@@ -1,5 +1,5 @@
+import os from 'node:os'
 import fs from 'node:fs'
-import url from 'node:url'
 import path from 'node:path'
 import assert from 'node:assert'
 import crypto from 'node:crypto'
@@ -13,7 +13,7 @@ import { tryCountErrorHook, assertTry, checkResults } from './_main.js'
  * [x]  new one has only new info
  */
 
-const __dirname = path.dirname(url.fileURLToPath(import.meta.url))
+const __dirname = os.tmpdir()
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
@@ -35,18 +35,20 @@ async function unlinkAllWithEnsure (paths) {
 /**
  *
  * @param {UDPLoggerWriter} UDPLoggerWriter
+ * @param {'ESM'|'CJS'} type
  * @param {string|undefined|null} encoding
  * @param {'buffer'|'string'} dataType
  * @returns {Promise<number>}
  */
 async function writerTest (
   UDPLoggerWriter,
+  type,
   encoding = 'utf8',
   dataType = 'string'
 ) {
   const alias = `  writer.js:${encoding || 'null'}:${dataType}: `
 
-  const filePath = path.resolve(__dirname, 'test-file.log')
+  const filePath = path.resolve(__dirname, `test-file-${type}.log`)
   const filePathRotated = filePath + '.old'
 
   await unlinkAllWithEnsure([filePath, filePathRotated])

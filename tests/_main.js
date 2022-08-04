@@ -1,6 +1,7 @@
 import identifierTests from './identifier.test.js'
 import constantsTest from './constants.test.js'
 import clientTest from './client.test.js'
+import socketTest from './socket.test.js'
 import serverTest from './server.test.js'
 import writerTest from './writer.test.js'
 
@@ -9,7 +10,7 @@ import writerTest from './writer.test.js'
  *  [x] identifier
  *  [x] defaults
  *  [x] client
- *  [] socket
+ *  [x] socket
  *  [x] writer
  *  [x] server
  */
@@ -31,15 +32,17 @@ export default async function _main (
   errorsCount += await identifierTests(identifier)
   errorsCount += await constantsTest(constants)
   errorsCount += await clientTest(UDPLoggerClient, identifier)
-  // errorsCount += await socketTest(UDPLoggerSocket, identifier, constants) // TODO
-  errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'string')
-  errorsCount += await writerTest(UDPLoggerWriter, 'utf8', 'buffer')
-  errorsCount += await writerTest(UDPLoggerWriter, null, 'string')
-  errorsCount += await writerTest(UDPLoggerWriter, null, 'buffer')
+  errorsCount += await socketTest(UDPLoggerSocket, identifier, constants)
+  errorsCount += await writerTest(UDPLoggerWriter, type, 'utf8', 'string')
+  errorsCount += await writerTest(UDPLoggerWriter, type, 'utf8', 'buffer')
+  errorsCount += await writerTest(UDPLoggerWriter, type, null, 'string')
+  errorsCount += await writerTest(UDPLoggerWriter, type, null, 'buffer')
   errorsCount += await serverTest(UDPLoggerServer)
 
   if (errorsCount === 0) console.log('All tests passed')
-  else { throw new Error(`Not all tests are passed. FAILED tests: ${errorsCount}`) }
+  else {
+    throw new Error(`Not all tests are passed. FAILED tests: ${errorsCount}`)
+  }
 }
 
 /**

@@ -67,7 +67,7 @@ Extends [`EventEmitter`][node-eventemitter]
   - `packetSize` `<number>` – optional. Number of bytes in each packet (chunk). **Default** `1280`
   - `isAsync` `<boolean>` – optional. Enables delayed message sending. Useful if you don't want to wait even for some `ns` in your business flow for logging. **Default** `false`
   - `encryption` `<string> | <(payload: Buffer) => Buffer>` – optional. **Default** `undefined`
-    - if passed `string` - will be applied `aes-256-ctr` encryption with passed string as a secret, so it should be 32char long;
+    - if passed `string` - will be applied `aes-256-ctr` encryption with passed string as a secret, so it should be `64char` long;
     - if passed `function` - will be used that function to encrypt every message;
     - if passed `undefined` - will not use any kind of encryption.
   - `serializer` `<(payload: any) => Buffer>` - optional. **Default** `v8.serialize`
@@ -177,7 +177,7 @@ It is a UDP socket in `readable stream` form.
   - `port` `<string | number>` – optional. **Default** `44002`
   - `host` `<string>` – optional **Default** `'127.0.0.1'` or `'::1'`
   - `decryption` `<string> | <(payload: Buffer) => Buffer>` – optional. **Default** `undefined`
-    - if passed `string` - will be applied `aes-256-ctr` decryption with passed string as a secret, so it should be 32char long;
+    - if passed `string` - will be applied `aes-256-ctr` decryption with passed string as a secret, so it should be `64char` long;
     - if passed `function` - will be used that function to decrypt every message;
     - if passed `undefined` - will not use any kind of decryption.
   - `deserializer` `<(payload: Buffer) => any>` - optional. **Default** `v8.deserialize`
@@ -264,6 +264,12 @@ Extends [`Writable` Stream][node-writable]
   - `filePath` `<string>` – **required**. Supports absolute and relative paths. If passed relative path then will use `process.cwd()` as a base path
   - `encoding` `<string>` — optional. Encoding for writer to your disk. **Default** `'utf8'`
   - `flags` `string` – optional. More info about flags you can check on [NodeJS File System Flags][node-file-system-flags]. **Default** `'a'`
+
+#### Fields:
+- `path`: `<string>`
+- `fd`: `<number>`
+- `bytesWritten`: `<number>`
+- `pending`: `<boolean>`
 
 #### Events:
 - `'ready'`: `<void>` – emitted when write stream ready

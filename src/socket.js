@@ -16,7 +16,7 @@ import {
  * @property {number} [port=44002]
  * @property {string} [host=('127.0.0.1'|'::1')]
  * @property {string | ((payload: Buffer) => Buffer)} [decryption]
- *    if passed string - will be applied aes-256-ctr encryption with passed string as secret, so it should be 32char long;
+ *    if passed string - will be applied aes-256-ctr encryption with passed string as secret, so it should be 64char long;
  *    if passed function - will be used that function to encrypt every message;
  *    if passed nothing - will not use any kind of encryption
  * @property {(payload: Buffer) => any} [deserializer]
@@ -97,6 +97,7 @@ class UDPLoggerSocket extends Readable {
     super({ ...readableOptions })
 
     this.#port = port
+    this.#host = host
     this.#deserializer = deserializer
     this.#formatMessage = formatMessage
     this.#type = type
@@ -316,11 +317,11 @@ class UDPLoggerSocket extends Readable {
     }
 
     const deserializedBody = this.#deserializer(bodyBuffered)
-    const message = this.#formatMessage(deserializedBody, date, id)
+    const message = this.#formatMessage(deserializedBody, date, id) // TODO remove meta info from format
 
     this.#addMessage(message)
 
-    this.emit('message', message, { body: deserializedBody, date, id })
+    this.emit('message', message, { body: deserializedBody, date, id }) // TODO remove this unnecessary thing
   }
 }
 

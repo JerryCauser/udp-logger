@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { Buffer } from "node:buffer"
 
 export function generateId (): Buffer

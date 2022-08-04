@@ -10,5 +10,8 @@ export interface UDPLoggerWriterOptions extends WritableOptions {
 
 declare class UDPLoggerWriter extends Writable {
   constructor (options: UDPLoggerWriterOptions)
-  get filePath(): string
+  get path(): string
+  get fd(): number
+  get bytesWritten(): number
+  get pending(): boolean
 }
