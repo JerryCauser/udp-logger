@@ -48,7 +48,10 @@ async function writerTest (
 ) {
   const alias = `  writer.js:${encoding || 'null'}:${dataType}: `
 
-  const filePath = path.resolve(__dirname, `test-file-${type}.log`)
+  const filePath = path.resolve(
+    __dirname,
+    `test-file-${crypto.randomBytes(6).toString('hex')}-${type}.log`
+  )
   const filePathRotated = filePath + '.old'
 
   await unlinkAllWithEnsure([filePath, filePathRotated])

@@ -27,7 +27,9 @@ __export(udp_logger_exports, {
   UDPLoggerClient: () => client_default,
   UDPLoggerServer: () => server_default,
   UDPLoggerSocket: () => socket_default,
-  UDPLoggerWriter: () => writer_default
+  UDPLoggerWriter: () => writer_default,
+  _constants: () => constants_exports,
+  _identifier: () => identifier_exports
 });
 module.exports = __toCommonJS(udp_logger_exports);
 
@@ -38,6 +40,21 @@ var import_node_buffer3 = require("node:buffer");
 var import_node_stream = require("node:stream");
 
 // src/identifier.js
+var identifier_exports = {};
+__export(identifier_exports, {
+  COUNTER_INDEX_SIZE: () => COUNTER_INDEX_SIZE,
+  COUNTER_TOTAL_SIZE: () => COUNTER_TOTAL_SIZE,
+  DATE_SIZE: () => DATE_SIZE,
+  ID_SIZE: () => ID_SIZE,
+  INCREMENTAL_SIZE: () => INCREMENTAL_SIZE,
+  RANDOM_SIZE: () => RANDOM_SIZE,
+  SEED_N_TOTAL_OFFSET: () => SEED_N_TOTAL_OFFSET,
+  SEED_SIZE: () => SEED_SIZE,
+  TIME_META_SIZE: () => TIME_META_SIZE,
+  generateId: () => generateId,
+  parseId: () => parseId,
+  setChunkMetaInfo: () => setChunkMetaInfo
+});
 var import_node_crypto = __toESM(require("node:crypto"), 1);
 var import_node_buffer = require("node:buffer");
 var DATE_SIZE = 6;
@@ -93,6 +110,16 @@ function parseId(buffer) {
 }
 
 // src/constants.js
+var constants_exports = {};
+__export(constants_exports, {
+  DEFAULT_DECRYPT_FUNCTION: () => DEFAULT_DECRYPT_FUNCTION,
+  DEFAULT_DESERIALIZER: () => DEFAULT_DESERIALIZER,
+  DEFAULT_ENCRYPT_FUNCTION: () => DEFAULT_ENCRYPT_FUNCTION,
+  DEFAULT_MESSAGE_FORMATTER: () => DEFAULT_MESSAGE_FORMATTER,
+  DEFAULT_PORT: () => DEFAULT_PORT,
+  DEFAULT_SERIALIZER: () => DEFAULT_SERIALIZER,
+  IV_SIZE: () => IV_SIZE
+});
 var import_node_v8 = __toESM(require("node:v8"), 1);
 var import_node_util = __toESM(require("node:util"), 1);
 var import_node_crypto2 = __toESM(require("node:crypto"), 1);
@@ -105,8 +132,8 @@ var DEFAULT_FORMAT_OPTIONS = {
 };
 var DEFAULT_MESSAGE_FORMATTER = (data, date, id) => {
   data.unshift(DEFAULT_FORMAT_OPTIONS);
-  data = import_node_util.default.formatWithOptions.apply(import_node_util.default, data);
-  return `${date.toISOString()}|${id}|${data}
+  const str = import_node_util.default.formatWithOptions.apply(import_node_util.default, data);
+  return `${date.toISOString()}|${id}|${str}
 `;
 };
 var DEFAULT_DESERIALIZER = import_node_v8.default.deserialize;
@@ -143,8 +170,8 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
   #formatMessage;
   #collector = /* @__PURE__ */ new Map();
   #gcIntervalId;
-  #gcIntervalTime = 5e3;
-  #gcExpirationTime = 1e4;
+  #gcIntervalTime;
+  #gcExpirationTime;
   #allowPush = true;
   #messages = [];
   #handleSocketMessage;
@@ -155,16 +182,21 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     decryption,
     deserializer = DEFAULT_DESERIALIZER,
     formatMessage = DEFAULT_MESSAGE_FORMATTER,
-    ...options
+    gcIntervalTime = 5e3,
+    gcExpirationTime = 1e4,
+    ...readableOptions
   } = {}) {
-    super(options);
+    super({ ...readableOptions });
     this.#port = port;
+    this.#host = host;
     this.#deserializer = deserializer;
     this.#formatMessage = formatMessage;
     this.#type = type;
+    this.#gcIntervalTime = gcIntervalTime;
+    this.#gcExpirationTime = gcExpirationTime;
     if (decryption) {
       if (typeof decryption === "string") {
-        this.#decryptionSecret = import_node_buffer3.Buffer.from(decryption);
+        this.#decryptionSecret = import_node_buffer3.Buffer.from(decryption, "hex");
         this.#decryptionFunction = (data) => DEFAULT_DECRYPT_FUNCTION(data, this.#decryptionSecret);
       } else if (decryption instanceof Function) {
         this.#decryptionFunction = decryption;
@@ -256,11 +288,11 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     const [date, id, total, index] = parseId(buffer.subarray(0, ID_SIZE));
     let data = this.#collector.get(id);
     if (!data) {
-      data = [/* @__PURE__ */ new Map(), Date.now(), date, id, total];
+      data = [/* @__PURE__ */ new Map(), Date.now(), date, id];
       this.#collector.set(id, data);
     }
     data[0].set(index, buffer.subarray(ID_SIZE));
-    if (data[0].size === total) {
+    if (data[0].size === total + 1) {
       this.#collector.delete(id);
       this.#compileMessage(data[0], data[2], data[3]);
     }
@@ -300,13 +332,14 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     }
   }
   #compileMessageUnsafe(body, date, id) {
-    let deserializedBody;
-    if (body.size === 1) {
-      deserializedBody = this.#deserializer([...body.values()][0]);
-    } else {
+    let bodyBuffered;
+    if (body.size > 1) {
       const sortedBuffers = [...body.entries()].sort((a, b) => a[0] - b[0]).map((n) => n[1]);
-      deserializedBody = this.#deserializer(import_node_buffer3.Buffer.concat(sortedBuffers));
+      bodyBuffered = import_node_buffer3.Buffer.concat(sortedBuffers);
+    } else {
+      bodyBuffered = [...body.values()][0];
     }
+    const deserializedBody = this.#deserializer(bodyBuffered);
     const message = this.#formatMessage(deserializedBody, date, id);
     this.#addMessage(message);
     this.emit("message", message, { body: deserializedBody, date, id });
@@ -315,79 +348,125 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
 var socket_default = UDPLoggerSocket;
 
 // src/writer.js
-var import_node_path = __toESM(require("node:path"), 1);
 var import_node_fs = __toESM(require("node:fs"), 1);
+var import_node_path = __toESM(require("node:path"), 1);
 var import_node_stream2 = require("node:stream");
-var EVENT_RENAME = "rename";
+var IO_DONE = Symbol("IO_DONE");
 var UDPLoggerWriter = class extends import_node_stream2.Writable {
-  #dirName;
-  #fileName;
   #filePath;
+  #fileName;
+  #dir;
   #encoding;
   #flags;
-  #fd;
+  #fd = null;
   #watcher;
+  #isPerforming = false;
+  #bytesWritten = 0;
   constructor({
-    dirName,
-    fileName,
+    filePath,
     encoding = "utf8",
     flags = "a",
-    ...options
+    ...writableOptions
   } = {}) {
-    super({ ...options });
-    this.#dirName = dirName;
-    this.#fileName = fileName;
+    super({ ...writableOptions });
+    this.#filePath = import_node_path.default.resolve(process.cwd(), filePath);
+    this.#fileName = import_node_path.default.parse(this.#filePath).base;
+    this.#dir = import_node_path.default.parse(this.#filePath).dir;
     this.#encoding = encoding;
-    this.#filePath = import_node_path.default.resolve(this.#dirName, this.#fileName);
     this.#flags = flags;
   }
   _construct(callback) {
     this.#open().then(() => {
-      this.#watcher = import_node_fs.default.watch(this.#dirName, this.#watchRename);
-      this.emit("writer:ready");
+      this.#watcher = import_node_fs.default.watch(this.#dir, this.#watchRename);
+      this.emit("ready");
       callback(null);
     }).catch(callback);
   }
   _destroy(error, callback) {
-    if (error) {
-      this.emit("error", error);
-    }
     this.#watcher.close();
-    this.#close().then(() => callback(error)).catch(callback);
+    if (this.#isPerforming) {
+      this.once(IO_DONE, (err) => this.#close(err).then(() => callback(error)).catch(callback));
+    } else {
+      this.#close(error).then(() => callback(error)).catch(callback);
+    }
   }
   _write(chunk, encoding, callback) {
+    this.#isPerforming = true;
+    const fn = (error, bytesWritten) => {
+      this.#bytesWritten += bytesWritten;
+      this.#isPerforming = false;
+      if (this.destroyed) {
+        callback(error);
+        return this.emit(IO_DONE, error);
+      }
+      if (error)
+        return callback(error);
+      callback();
+    };
     if (typeof chunk === "string") {
-      import_node_fs.default.write(this.#fd, chunk, void 0, this.#encoding, callback);
+      import_node_fs.default.write(this.#fd, chunk, void 0, this.#encoding, fn);
     } else {
-      import_node_fs.default.write(this.#fd, chunk, callback);
+      import_node_fs.default.write(this.#fd, chunk, fn);
     }
   }
-  _writev(chunks, callback) {
-    if (typeof chunks[0].chunk === "string") {
-      let data = "";
-      for (let i = 0; i < chunks.length; ++i)
-        data += chunks[i].chunk;
-      import_node_fs.default.write(this.#fd, data, void 0, this.#encoding, callback);
+  _writev(data, callback) {
+    const length = data.length;
+    const chunks = new Array(length);
+    if (typeof data[0].chunk === "string") {
+      for (let i = 0; i < length; ++i) {
+        chunks[i] = Buffer.from(data[i].chunk, this.#encoding);
+      }
     } else {
-      const arr = [];
-      for (let i = 0; i < chunks.length; ++i)
-        arr.push(chunks[i].chunk);
-      import_node_fs.default.write(this.#fd, Buffer.concat(arr), callback);
+      for (let i = 0; i < length; ++i) {
+        chunks[i] = data[i].chunk;
+      }
     }
+    this.#isPerforming = true;
+    const fn = (error, bytesWritten) => {
+      this.#bytesWritten += bytesWritten;
+      this.#isPerforming = false;
+      if (this.destroyed) {
+        callback(error);
+        return this.emit(IO_DONE, error);
+      }
+      if (error)
+        return callback(error);
+      callback();
+    };
+    import_node_fs.default.writev(this.#fd, chunks, fn);
+  }
+  get path() {
+    return this.#filePath;
+  }
+  get fd() {
+    return this.#fd;
+  }
+  get bytesWritten() {
+    return this.#bytesWritten;
+  }
+  get pending() {
+    return this.#fd === null;
   }
   async #open() {
     return await new Promise((resolve, reject) => {
+      if (typeof this.#fd === "number") {
+        return resolve(null);
+      }
       import_node_fs.default.open(this.#filePath, this.#flags, (err, fd) => {
         if (err)
           return reject(err);
         this.#fd = fd;
         resolve(null);
+        this.emit("reopen");
       });
     });
   }
-  async #close() {
+  async #close(error) {
     return await new Promise((resolve, reject) => {
+      if (this.#fd === null)
+        return reject(error);
       import_node_fs.default.close(this.#fd, (err) => {
+        this.#fd = null;
         if (err)
           return reject(err);
         resolve(null);
@@ -395,12 +474,12 @@ var UDPLoggerWriter = class extends import_node_stream2.Writable {
     });
   }
   #watchRename = async (event, fileName) => {
-    if (event === EVENT_RENAME && fileName === this.#fileName) {
+    if (event === "rename" && fileName === this.#fileName) {
       if (!import_node_fs.default.existsSync(this.#filePath)) {
         this.cork();
-        await this.#close();
+        await this.#close(null);
         await this.#open();
-        this.uncork();
+        process.nextTick(() => this.uncork());
       }
     }
   };
@@ -430,9 +509,9 @@ var UDPLoggerClient = class extends import_node_events2.EventEmitter {
     isAsync = false,
     encryption,
     serializer = DEFAULT_SERIALIZER,
-    ...other
+    ...eventEmitterOptions
   } = {}) {
-    super(other);
+    super({ ...eventEmitterOptions });
     this.#port = port;
     this.#host = host;
     this.#type = type;
@@ -442,7 +521,7 @@ var UDPLoggerClient = class extends import_node_events2.EventEmitter {
     if (encryption) {
       if (typeof encryption === "string") {
         this.#packetSize = packetSize - IV_SIZE;
-        this.#encryptionSecret = import_node_buffer4.Buffer.from(encryption);
+        this.#encryptionSecret = import_node_buffer4.Buffer.from(encryption, "hex");
         this.#encryptionFunction = (data) => DEFAULT_ENCRYPT_FUNCTION(data, this.#encryptionSecret);
       } else if (encryption instanceof Function) {
         this.#encryptionFunction = encryption;
@@ -465,9 +544,9 @@ var UDPLoggerClient = class extends import_node_events2.EventEmitter {
     setImmediate(this.#syncLog, ...args);
   };
   #send = (payload, id) => {
-    const total = Math.ceil(payload.length / this.#packetSize);
+    const total = Math.ceil(payload.length / this.#packetSize) - 1;
     for (let i = 0; i < payload.length; i += this.#packetSize) {
-      let chunk = this.#markChunk(id, total, i, payload.subarray(i, i + this.#packetSize));
+      let chunk = this.#markChunk(id, total, i / this.#packetSize, payload.subarray(i, i + this.#packetSize));
       if (this.#encryptionFunction !== void 0) {
         chunk = this.#encryptionFunction(chunk);
       }
@@ -478,11 +557,11 @@ var UDPLoggerClient = class extends import_node_events2.EventEmitter {
     this.#socket.send(payload);
   };
   #markChunk(id, total, index, chunk) {
-    const marked = import_node_buffer4.Buffer.alloc(chunk.length + ID_SIZE);
-    marked.set(id, 0);
-    setChunkMetaInfo(marked, total, index);
-    marked.set(chunk, ID_SIZE);
-    return marked;
+    const resultChunk = import_node_buffer4.Buffer.alloc(chunk.length + ID_SIZE);
+    resultChunk.set(id, 0);
+    setChunkMetaInfo(resultChunk, total, index);
+    resultChunk.set(chunk, ID_SIZE);
+    return resultChunk;
   }
 };
 var client_default = UDPLoggerClient;
@@ -493,9 +572,9 @@ var UDPLoggerServer = class extends import_node_events3.EventEmitter {
   #options;
   socket;
   writer;
-  constructor(options) {
+  constructor(options = {}) {
     super(options);
-    options.fileName ??= `udp-port-${options.port || DEFAULT_PORT}.log`;
+    options.filePath ??= `./udp-port-${options.port || DEFAULT_PORT}.log`;
     this.#options = options;
   }
   async start() {
@@ -504,11 +583,10 @@ var UDPLoggerServer = class extends import_node_events3.EventEmitter {
     this.socket.pipe(this.writer);
     this.socket.on("error", this.#handleError);
     this.writer.on("error", this.#handleError);
-    this.socket.on("socket:warning", this.#handleWarning);
-    this.socket.on("socket:missing", this.#handleWarning);
+    this.socket.on("warning", this.#handleWarning);
     await Promise.all([
-      import_node_events3.EventEmitter.once(this.socket, "socket:ready"),
-      import_node_events3.EventEmitter.once(this.writer, "writer:ready")
+      import_node_events3.EventEmitter.once(this.socket, "ready"),
+      import_node_events3.EventEmitter.once(this.writer, "ready")
     ]);
     this.emit("ready");
     return this;
@@ -522,8 +600,7 @@ var UDPLoggerServer = class extends import_node_events3.EventEmitter {
   async stop() {
     this.socket.off("error", this.#handleError);
     this.writer.off("error", this.#handleError);
-    this.socket.off("socket:warning", this.#handleWarning);
-    this.socket.off("socket:missing", this.#handleWarning);
+    this.socket.off("warning", this.#handleWarning);
     this.socket.push(null);
     await Promise.all([
       import_node_events3.EventEmitter.once(this.socket, "close"),
@@ -541,5 +618,7 @@ var server_default = UDPLoggerServer;
   UDPLoggerClient,
   UDPLoggerServer,
   UDPLoggerSocket,
-  UDPLoggerWriter
+  UDPLoggerWriter,
+  _constants,
+  _identifier
 });

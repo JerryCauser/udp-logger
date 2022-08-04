@@ -18,21 +18,21 @@ import writerTest from './writer.test.js'
 export default async function _main (
   type,
   {
-    identifier,
-    constants,
     UDPLoggerClient,
     UDPLoggerSocket,
     UDPLoggerWriter,
-    UDPLoggerServer
+    UDPLoggerServer,
+    _constants,
+    _identifier
   }
 ) {
   console.log(`${type} Tests Started\n`)
   let errorsCount = 0
 
-  errorsCount += await identifierTests(identifier)
-  errorsCount += await constantsTest(constants)
-  errorsCount += await clientTest(UDPLoggerClient, identifier)
-  errorsCount += await socketTest(UDPLoggerSocket, identifier, constants)
+  errorsCount += await identifierTests(_identifier)
+  errorsCount += await constantsTest(_constants)
+  errorsCount += await clientTest(UDPLoggerClient, _identifier)
+  errorsCount += await socketTest(UDPLoggerSocket, _identifier, _constants)
   errorsCount += await writerTest(UDPLoggerWriter, type, 'utf8', 'string')
   errorsCount += await writerTest(UDPLoggerWriter, type, 'utf8', 'buffer')
   errorsCount += await writerTest(UDPLoggerWriter, type, null, 'string')
