@@ -1,5 +1,5 @@
-export { default as UdpLoggerSocket } from './src/udp-logger-socket.js'
-export { default as UdpLoggerClient } from './src/udp-logger-client.js'
+export { default as UdpLoggerSocket } from './src/socket.js'
+export { default as UdpLoggerClient } from './src/client.js'
 export { default as UdpLoggerServer } from './src/server.js'
 export { default as UdpLoggerWriter } from './src/writer.js'
 export { DEFAULT_PORT, DEFAULT_MESSAGE_FORMATTER } from './src/constants.js'

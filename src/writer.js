@@ -1,5 +1,5 @@
 /** Rewritten https://github.com/nodejs/node/blob/73ba8830d59015e8554903301245ee32c31baa9f/lib/internal/fs/streams.js#L307
- * But I've added here logic to recreate file on rename/remove and keep writing
+ * But I've added logic to recreate file on rename/remove and keep writing
  * */
 import fs from 'node:fs'
 import path from 'node:path'

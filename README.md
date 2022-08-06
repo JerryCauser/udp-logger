@@ -33,7 +33,7 @@ main()
 ```
 
 ```javascript
-//logger-udp-logger-client.js
+//logger-client.js
 import { UdpLoggerClient } from 'udp-logger'
 
 export const logger = new UdpLoggerClient({ encryption: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff' })
@@ -51,7 +51,7 @@ const server = new UdpLoggerServer({
 await server.start()
 ```
 
-After just start the logger server `node logger-server.js` and start your app `node app.js`. That's all! Everything is working just fine, and you saved the world 🎉
+After just start the logger server `node logger-server.js` and start your app `node app.js`. That's all and everything works.
 
 ## Documentation
 
@@ -168,7 +168,7 @@ console.log('log udp server started')
 ### class `UdpLoggerSocket`
 Extends [`Readable` Stream][node-readable]
 
-It is a Udp socket in `readable stream` form.
+It is a UDP socket in `readable stream` form.
 
 #### Arguments:
 - `options` `<object>` – **required**
@@ -288,7 +288,7 @@ socket.pipe(writer)
 ---
 
 
-### Additional Exposed variables and functions from [`constants`][constants]
+### Additional Exposed variables and functions
 #### function `DEFAULT_MESSAGE_FORMATTER(data, date, id)`
  - `data` `<any[]>` — deserialized arguments of `log` function from [`UdpLoggerClient`][client]
  - `date` `<Date>`
@@ -299,6 +299,10 @@ Default format function to write logs. Underhood it uses [util-inspect][node-uti
 
 #### constant `DEFAULT_PORT`
 - `<number>` : `44002`
+---
+
+There are `_identifier` and `_constants` exposed also, but they are used for internal needs. They could be removed in next releases, so it is not recommended to use it in your project.  
+
 ---
 
 License ([MIT](LICENSE))

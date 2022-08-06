@@ -1,5 +1,5 @@
 import { UdpSocketOptions } from './udp-socket'
-import UdpLoggerSocket, { UdpLoggerSocketOptions } from './udp-logger-socket'
+import UdpLoggerSocket, { UdpLoggerSocketOptions } from './socket'
 import UdpLoggerWriter, { UdpLoggerWriterOptions } from './writer'
 
 export default UdpLoggerServer

@@ -2,10 +2,6 @@ import UdpClient from './udp-client.js'
 import { DEFAULT_SERIALIZER } from './constants.js'
 
 /**
- * @import('./udp-client.js')
- */
-
-/**
  *
  * @typedef {object} UdpLoggerClientOptions
  * @property {boolean?} [sync=true] disables/enables delayed message sending

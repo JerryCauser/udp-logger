@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import UdpLoggerSocket from './udp-logger-socket.js'
+import UdpLoggerSocket from './socket.js'
 import UdpLoggerWriter from './writer.js'
 import { DEFAULT_PORT } from './constants.js'
 
