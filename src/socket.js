@@ -16,11 +16,13 @@ import {
  * @property {number} [port=44002]
  * @property {string} [host=('127.0.0.1'|'::1')]
  * @property {string | ((payload: Buffer) => Buffer)} [decryption]
- *    if passed string - will be applied aes-256-ctr encryption with passed string as secret, so it should be 32char long;
+ *    if passed string - will be applied aes-256-ctr encryption with passed string as secret, so it should be 64char long;
  *    if passed function - will be used that function to encrypt every message;
  *    if passed nothing - will not use any kind of encryption
  * @property {(payload: Buffer) => any} [deserializer]
  * @property {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} [formatMessage]
+ * @property {number?} [gcIntervalTime=5_000] how often instance will check internal buffer to delete expired messages
+ * @property {number?} [gcExpirationTime=10_000] how long chunks can await all missing chunks in internal buffer
  *
  * @extends {ReadableOptions}
  */
@@ -57,17 +59,17 @@ class UDPLoggerSocket extends Readable {
   /** @type {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} */
   #formatMessage
 
-  /** @type {Map<string, [logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string, logTotal:number]>} data */
+  /** @type {Map<string, [logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string]>} data */
   #collector = new Map()
 
   /** @type {number} */
   #gcIntervalId
 
   /** @type {number} */
-  #gcIntervalTime = 5000
+  #gcIntervalTime
 
   /** @type {number} */
-  #gcExpirationTime = 10000
+  #gcExpirationTime
 
   /** @type {boolean} */
   #allowPush = true
@@ -88,14 +90,20 @@ class UDPLoggerSocket extends Readable {
     decryption,
     deserializer = DEFAULT_DESERIALIZER,
     formatMessage = DEFAULT_MESSAGE_FORMATTER,
+    gcIntervalTime = 5000,
+    gcExpirationTime = 10000,
     ...readableOptions
   } = {}) {
     super({ ...readableOptions })
 
     this.#port = port
+    this.#host = host
     this.#deserializer = deserializer
     this.#formatMessage = formatMessage
     this.#type = type
+
+    this.#gcIntervalTime = gcIntervalTime
+    this.#gcExpirationTime = gcExpirationTime
 
     if (decryption) {
       if (typeof decryption === 'string') {
@@ -227,16 +235,16 @@ class UDPLoggerSocket extends Readable {
   #handlePlainMessage = (buffer) => {
     const [date, id, total, index] = parseId(buffer.subarray(0, ID_SIZE))
 
-    /** @type {[logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string, logTotal:number]} */
+    /** @type {[logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string]} */
     let data = this.#collector.get(id)
     if (!data) {
-      data = [new Map(), Date.now(), date, id, total]
+      data = [new Map(), Date.now(), date, id]
       this.#collector.set(id, data)
     }
 
     data[0].set(index, buffer.subarray(ID_SIZE))
 
-    if (data[0].size === total) {
+    if (data[0].size === total + 1) {
       this.#collector.delete(id)
       this.#compileMessage(data[0], data[2], data[3])
     }
@@ -309,11 +317,11 @@ class UDPLoggerSocket extends Readable {
     }
 
     const deserializedBody = this.#deserializer(bodyBuffered)
-    const message = this.#formatMessage(deserializedBody, date, id)
+    const message = this.#formatMessage(deserializedBody, date, id) // TODO remove meta info from format
 
     this.#addMessage(message)
 
-    this.emit('message', message, { body: deserializedBody, date, id })
+    this.emit('message', message, { body: deserializedBody, date, id }) // TODO remove this unnecessary thing
   }
 }
 

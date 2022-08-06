@@ -74,7 +74,7 @@ class UDPLoggerClient extends EventEmitter {
     this.#port = port
     this.#host = host
     this.#type = type
-    this.#packetSize = packetSize - ID_SIZE
+    this.#packetSize = packetSize - ID_SIZE // max 65507 - ID_SIZE
 
     this.#isAsync = isAsync
     this.#serializer = serializer
@@ -127,13 +127,13 @@ class UDPLoggerClient extends EventEmitter {
    * @param {Buffer} id
    */
   #send = (payload, id) => {
-    const total = Math.ceil(payload.length / this.#packetSize)
+    const total = Math.ceil(payload.length / this.#packetSize) - 1
 
     for (let i = 0; i < payload.length; i += this.#packetSize) {
       let chunk = this.#markChunk(
         id,
         total,
-        i,
+        i / this.#packetSize,
         payload.subarray(i, i + this.#packetSize)
       )
 
@@ -160,13 +160,13 @@ class UDPLoggerClient extends EventEmitter {
    * @returns {Buffer}
    */
   #markChunk (id, total, index, chunk) {
-    const marked = Buffer.alloc(chunk.length + ID_SIZE)
+    const resultChunk = Buffer.alloc(chunk.length + ID_SIZE)
 
-    marked.set(id, 0)
-    setChunkMetaInfo(marked, total, index)
-    marked.set(chunk, ID_SIZE)
+    resultChunk.set(id, 0)
+    setChunkMetaInfo(resultChunk, total, index)
+    resultChunk.set(chunk, ID_SIZE)
 
-    return marked
+    return resultChunk
   }
 }
 
