@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { Buffer } from "node:buffer"
 
-export interface UDPLoggerClientOptions {
+export interface UdpClientOptions {
   type?: string
   port?: number
   host?: string
@@ -10,21 +10,17 @@ export interface UDPLoggerClientOptions {
    */
   packetSize?: number
   /**
-   * enable or not delayed message sent
-   */
-  isAsync?: boolean
-  /**
    * if passed string - will be applied aes-256-ctr encryption with passed string as secret;
    * if passed function - will be used that function to encrypt every message;
+   * if passed nothing - will not use any kind of encryption.
    */
   encryption?: string | ((payload: Buffer) => Buffer)
-  serializer?: (data: any) => Buffer
   captureRejections?: boolean // for reason that we do not have EventEmitterOptions I wrote it directly here
 }
 
-declare class UDPLoggerClient {
-  constructor (options?: UDPLoggerClientOptions)
-  log: (...args: any) => void
+declare class UdpClient {
+  constructor (options?: UdpClientOptions)
+  send (buffer: Buffer): void
 }
 
-export default UDPLoggerClient
+export default UdpClient

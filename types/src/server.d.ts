@@ -1,18 +1,18 @@
-import UDPLoggerSocket, { UDPLoggerSocketOptions } from './socket'
-import UDPLoggerWriter, { UDPLoggerWriterOptions } from './writer'
+import { UdpSocketOptions } from './udp-socket'
+import UdpLoggerSocket, { UdpLoggerSocketOptions } from './udp-logger-socket'
+import UdpLoggerWriter, { UdpLoggerWriterOptions } from './writer'
 
-export default UDPLoggerServer
+export default UdpLoggerServer
 // @ts-expect-error
-export interface UDPLoggerServerOptions
-  extends UDPLoggerSocketOptions,
-  UDPLoggerWriterOptions {
+export interface UdpLoggerServerOptions
+  extends UdpSocketOptions, UdpLoggerSocketOptions, UdpLoggerWriterOptions {
   filePath?: string
 }
 
-declare class UDPLoggerServer {
-  constructor (options?: UDPLoggerServerOptions)
-  socket: UDPLoggerSocket
-  writer: UDPLoggerWriter
-  start (): Promise<UDPLoggerServer>
-  stop (): Promise<UDPLoggerServer>
+declare class UdpLoggerServer {
+  constructor (options?: UdpLoggerServerOptions)
+  socket: UdpLoggerSocket
+  writer: UdpLoggerWriter
+  start (): Promise<UdpLoggerServer>
+  stop (): Promise<UdpLoggerServer>
 }

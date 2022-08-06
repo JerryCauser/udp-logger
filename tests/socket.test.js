@@ -23,7 +23,7 @@ const delay = (ms) =>
 /**
  * @returns {Promise<Socket & {stop: (() => Promise<void>)}>}
  */
-const createUDPClient = async () => {
+const createUdpClient = async () => {
   const socket = Object.create(
     dgram.createSocket({ type: 'udp4', reuseAddr: true })
   )
@@ -39,12 +39,12 @@ const createUDPClient = async () => {
 
 /**
  *
- * @param {UDPLoggerSocket} UDPLoggerSocket
+ * @param {UdpLoggerSocket} UdpLoggerSocket
  * @param {object} identifier
  * @param {object} constants
  * @returns {Promise<number>}
  */
-async function socketTest (UDPLoggerSocket, identifier, constants) {
+async function socketTest (UdpLoggerSocket, identifier, constants) {
   const alias = '  socket.js: '
 
   const { generateId, setChunkMetaInfo, ID_SIZE, DATE_SIZE } = identifier
@@ -58,18 +58,18 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
   const BIG_PACKET_SIZE = 300
 
   /**
-   * @param {UDPLoggerSocketOptions} options
+   * @param {UdpLoggerSocketOptions} options
    * @param {function?} options.deserializer
    * @param {function?} options.formatMessage
-   * @returns {Promise<UDPLoggerSocket & {messages:Buffer[], stop: (() => Promise<void>)}>}
+   * @returns {Promise<UdpLoggerSocket & {messages:Buffer[], stop: (() => Promise<void>)}>}
    */
-  const createUDPSocket = async ({
+  const createUdpSocket = async ({
     port = DEFAULT_PORT,
     deserializer = DEFAULT_DESERIALIZER,
     formatMessage = DEFAULT_FORMAT_MESSAGE,
     ...opts
   } = {}) => {
-    const socket = new UDPLoggerSocket({
+    const socket = new UdpLoggerSocket({
       ...opts,
       port,
       deserializer,
@@ -114,13 +114,11 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
     const caseAlias = `${alias} sending small message ->`
     const results = { fails: [] }
 
-    const client = await createUDPClient()
-    const socket = await createUDPSocket({
+    const client = await createUdpClient()
+    const socket = await createUdpSocket({
       port: DEFAULT_PORT,
       packetSize: SMALL_PACKET_SIZE
     })
-
-    // await delay(30000)
 
     const payload = crypto.randomBytes(SMALL_PACKET_SIZE - ID_SIZE)
 
@@ -156,8 +154,8 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
     const caseAlias = `${alias} sending large message ->`
     const results = { fails: [] }
 
-    const client = await createUDPClient()
-    const socket = await createUDPSocket({
+    const client = await createUdpClient()
+    const socket = await createUdpSocket({
       port: DEFAULT_PORT,
       packetSize: BIG_PACKET_SIZE
     })
@@ -204,7 +202,7 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
   }
 
   async function testSocketWarningCompile () {
-    const caseAlias = `${alias} handling compile warning ->`
+    const caseAlias = `${alias} handling compile warning with 'objectMode': true ->`
     const results = { fails: [] }
 
     const jsonData = {
@@ -232,14 +230,12 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
       return JSON.parse(buf.toString('utf8'))
     }
 
-    const client = await createUDPClient()
-    const socket = await createUDPSocket({
+    const client = await createUdpClient()
+    const socket = await createUdpSocket({
+      objectMode: true,
       gcExpirationTime: 10,
       gcIntervalTime: 5,
       deserializer,
-      formatMessage: (data) => JSON.stringify(data),
-      // bcs we didn't pass `objectMode`. string will be converted to Buffer like TypedArray,
-      // so we can just compare end results with buffers
       port: DEFAULT_PORT,
       packetSize: SMALL_PACKET_SIZE
     })
@@ -302,8 +298,7 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
       results
     )
 
-    checkMessage(caseAlias, socket.messages[0], results, dataCorrect)
-    // we make to string bcs using SocketStream without `objectMode` and converting data to string
+    checkMessage(caseAlias, socket.messages[0], results, jsonData)
 
     await Promise.all([socket.stop(), client.stop()])
 
@@ -314,8 +309,8 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
     const caseAlias = `${alias} handling warning Missing ->`
     const results = { fails: [] }
 
-    const client = await createUDPClient()
-    const socket = await createUDPSocket({
+    const client = await createUdpClient()
+    const socket = await createUdpSocket({
       gcExpirationTime: 6,
       gcIntervalTime: 3,
       port: DEFAULT_PORT,
@@ -408,8 +403,8 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
     const enc = (buf) => buf.map((b) => b ^ secret)
     const dec = (buf) => buf.map((b) => b ^ secret)
 
-    const client = await createUDPClient()
-    const socket = await createUDPSocket({
+    const client = await createUdpClient()
+    const socket = await createUdpSocket({
       port: DEFAULT_PORT,
       packetSize: BIG_PACKET_SIZE,
       decryption: dec
@@ -465,8 +460,8 @@ async function socketTest (UDPLoggerSocket, identifier, constants) {
     const enc = (data) =>
       DEFAULT_ENCRYPT_FUNCTION(data, Buffer.from(secret, 'hex'))
 
-    const client = await createUDPClient()
-    const socket = await createUDPSocket({
+    const client = await createUdpClient()
+    const socket = await createUdpSocket({
       port: DEFAULT_PORT,
       packetSize: BIG_PACKET_SIZE,
       decryption: dec

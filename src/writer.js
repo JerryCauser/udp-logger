@@ -8,7 +8,7 @@ import { Writable } from 'node:stream'
 const IO_DONE = Symbol('IO_DONE')
 
 /**
- * @typedef {object} UDPLoggerWriterOptions
+ * @typedef {object} UdpLoggerWriterOptions
  * @property {string} filePath supports absolute and relative paths.
  *            If passed relative path then will use process.cwd() as a base path
  * @property {string} [encoding='utf8']
@@ -18,10 +18,10 @@ const IO_DONE = Symbol('IO_DONE')
  */
 
 /**
- * @param {UDPLoggerWriterOptions} [options={}]
+ * @param {UdpLoggerWriterOptions} [options={}]
  * @constructor
  */
-class UDPLoggerWriter extends Writable {
+class UdpLoggerWriter extends Writable {
   #filePath
   #fileName
   #dir
@@ -37,7 +37,7 @@ class UDPLoggerWriter extends Writable {
   #bytesWritten = 0
 
   /**
-   * @param {UDPLoggerWriterOptions} options
+   * @param {UdpLoggerWriterOptions} options
    */
   constructor ({
     filePath,
@@ -219,4 +219,4 @@ class UDPLoggerWriter extends Writable {
   }
 }
 
-export default UDPLoggerWriter
+export default UdpLoggerWriter

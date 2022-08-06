@@ -1,15 +1,14 @@
-# UDP Logger 
-![npm](https://img.shields.io/npm/v/udp-logger)
-![LGTM Grade](https://img.shields.io/lgtm/grade/javascript/github/JerryCauser/udp-logger)
+# Udp Logger 
+[![npm](https://img.shields.io/npm/v/udp-logger)](https://www.npmjs.com/package/udp-logger)
+[![LGTM Grade](https://img.shields.io/lgtm/grade/javascript/github/JerryCauser/udp-logger)](https://lgtm.com/projects/g/JerryCauser/udp-logger)
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
-![GitHub](https://img.shields.io/github/license/JerryCauser/udp-logger)
+[![GitHub](https://img.shields.io/github/license/JerryCauser/udp-logger)](https://github.com/JerryCauser/udp-logger/blob/master/LICENSE)
 
 Socket and Client for udp logging with possibility to encrypt data.
 
-- Fast — almost zero overhead above UDP to send messages
+- Fast — little overhead above UDP to send messages
 - Secure — built-in encryption for sensitive logs
 - Simple — used well-known Node streams to manipulate and move data 
-- Zero-dependency
 - ESM and CJS
 
 ## Install
@@ -22,7 +21,7 @@ npm i --save udp-logger
 
 ```javascript
 //app.js
-import { logger } from './logger-client.js'
+import { logger } from 'udp-logger'
 
 function main () {
   /* ... */
@@ -34,19 +33,19 @@ main()
 ```
 
 ```javascript
-//logger-client.js
-import { UDPLoggerClient } from 'udp-logger'
+//logger-udp-logger-client.js
+import { UdpLoggerClient } from 'udp-logger'
 
-export const logger = new UDPLoggerClient({ encryption: '11223344556677889900aabbccddeeff' })
+export const logger = new UdpLoggerClient({ encryption: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff' })
 ```
 
 ```javascript
 //logger-server.js
-import { UDPLoggerServer } from 'udp-logger'
+import { UdpLoggerServer } from 'udp-logger'
 
-const server = new UDPLoggerServer({
+const server = new UdpLoggerServer({
   filePath: './my-app.log',
-  decryption: '11223344556677889900aabbccddeeff'
+  decryption: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff'
 })
 
 await server.start()
@@ -56,7 +55,7 @@ After just start the logger server `node logger-server.js` and start your app `n
 
 ## Documentation
 
-### class `UDPLoggerClient`
+### class `UdpLoggerClient`
 Extends [`EventEmitter`][node-eventemitter]
 
 #### Arguments:
@@ -77,17 +76,17 @@ Extends [`EventEmitter`][node-eventemitter]
 - `log (...args: any)`: `<void>` – just log whatever you need.
 
 #### Events:
-- `'ready'`: `<void>` – emitted when the client "establishes" udp connection. But you are not required to wait and just start using `log` method.
+- `'ready'`: `<void>` – emitted when the client "establishes" udp connection.
 
 #### Usage
 ##### Simple example with encryption
 ```javascript
-import { UDPLoggerClient } from 'udp-logger'
+import { UdpLoggerClient } from 'udp-logger'
 
-const logger = new UDPLoggerClient({
+const logger = new UdpLoggerClient({
   port: 44002,
   // encryption: (buf) => buf.map(byte => byte ^ 83) // not safe at all, but better than nothing
-  encryption: '11223344556677889900aabbccddeeff'
+  encryption: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff'
 })
 
 logger.log('Hello, world!')
@@ -96,13 +95,13 @@ logger.log(new Error('Goodbye, world...'))
 
 ##### Example of several levels of logging with encryption
 ```javascript
-import { UDPLoggerClient } from 'udp-logger'
+import { UdpLoggerClient } from 'udp-logger'
 
-const encryption = '11223344556677889900aabbccddeeff'
+const encryption = '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff'
 
-const logs = new UDPLoggerClient({ port: 45001, encryption })
-const errors = new UDPLoggerClient({ port: 45002, encryption })
-const statistics = new UDPLoggerClient({ port: 45003, encryption })
+const logs = new UdpLoggerClient({ port: 45001, encryption })
+const errors = new UdpLoggerClient({ port: 45002, encryption })
+const statistics = new UdpLoggerClient({ port: 45003, encryption })
 
 const logger = {
   log: logs.log,
@@ -117,10 +116,10 @@ export default logger
 
 ---
 
-### class `UDPLoggerServer`
+### class `UdpLoggerServer`
 Extends [`EventEmitter`][node-eventemitter]
 
-It is a simple wrapper around [`UDPLoggerSocket`][socket] and [`UDPLoggerWriter`][writer] created to simplify rapid start
+It is a simple wrapper around [`UdpLoggerSocket`][socket] and [`UdpLoggerWriter`][writer] created to simplify rapid start
 
 #### Arguments:
 - `options` `<object>` – optional
@@ -130,33 +129,33 @@ It is a simple wrapper around [`UDPLoggerSocket`][socket] and [`UDPLoggerWriter`
   - `type` `<'udp4' | 'udp6'>` – optional. **Default** `'udp4'`
   - `port` `<string> | <number>` – optional. **Default** `44002`
   - `host` `<string>` – optional **Default** `'127.0.0.1'` or `'::1'`
-  - `decryption` `<string> | <(payload: Buffer) => Buffer>` – optional. For more details check [UDPLoggerSocket Arguments Section][socket] **Default** `undefined`
-  - `deserializer` `<(payload: Buffer) => any>` - optional. For more details check [UDPLoggerSocket Arguments Section][socket] **Default** `v8.deserialize`
+  - `decryption` `<string> | <(payload: Buffer) => Buffer>` – optional. For more details check [UdpLoggerSocket Arguments Section][socket] **Default** `undefined`
+  - `deserializer` `<(payload: Buffer) => any>` - optional. For more details check [UdpLoggerSocket Arguments Section][socket] **Default** `v8.deserialize`
   - `formatMessage` `<(data:any, date:Date, id:number|string) => string | Buffer | Uint8Array>`  - optional. **Default** `DEFAULT_MESSAGE_FORMATTER` from constants
 
 #### Fields: 
-- `socket`: `<UDPLoggerSocket>` – instance of [socket][socket].
-- `writer`: `<UDPLoggerWriter>` – instance of [writer][writer].
+- `socket`: `<UdpLoggerSocket>` – instance of [socket][socket].
+- `writer`: `<UdpLoggerWriter>` – instance of [writer][writer].
 
 #### Methods:
-- `start ()`: `<Promise<UDPLoggerServer>>`
-- `stop ()`: `<Promise<UDPLoggerServer>>`
+- `start ()`: `<Promise<UdpLoggerServer>>`
+- `stop ()`: `<Promise<UdpLoggerServer>>`
 
 #### Events:
 - `'ready'`: `<void>` – emitted when server started
 - `'close'`: `<void>` – emitted when server closed
 - `'error'`: `<Error~object>` – emitted when some error occurs in `socket` or `writer`. Requires you to handle errors on instance of server.
-- `'warning'`: `<any>` – emitted when warning occurs. For more details check [UDPLoggerSocket Events Sections][socket-event-warning]
+- `'warning'`: `<any>` – emitted when warning occurs. For more details check [UdpLoggerSocket Events Sections][socket-event-warning]
 
 #### Usage
 ```javascript
-import { UDPLoggerServer } from 'udp-logger'
+import { UdpLoggerServer } from 'udp-logger'
 
-const server = new UDPLoggerServer({
+const server = new UdpLoggerServer({
   filePath: './my-app.log',
   port: 44002,
   // decryption: (buf) => buf.map(byte => byte ^ 83) // not safe at all, but better than nothing
-  decryption: '11223344556677889900aabbccddeeff'
+  decryption: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff'
 })
 
 await server.start()
@@ -166,10 +165,10 @@ console.log('log udp server started')
 
 ---
 
-### class `UDPLoggerSocket`
+### class `UdpLoggerSocket`
 Extends [`Readable` Stream][node-readable]
 
-It is a UDP socket in `readable stream` form.
+It is a Udp socket in `readable stream` form.
 
 #### Arguments:
 - `options` `<object>` – **required**
@@ -218,12 +217,12 @@ A message might be:
 #### Usage
 ##### Example how to use pure socket as async generator
 ```javascript
-import { UDPLoggerSocket } from 'udp-logger'
+import { UdpLoggerSocket } from 'udp-logger'
 
-const socket = new UDPLoggersocket({
+const socket = new UdpLoggersocket({
   port: 44002,
   // decryption: (buf) => buf.map(byte => byte ^ 83) // not safe at all, but better than nothing
-  decryption: '11223344556677889900aabbccddeeff'
+  decryption: '11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff'
 })
 
 for await (const message of socket) {
@@ -231,12 +230,12 @@ for await (const message of socket) {
 }
 ```
 
-##### Example how to use socket and use [UDPLoggerWriter][writer]
+##### Example how to use socket and use [UdpLoggerWriter][writer]
 ```javascript
-import { UDPLoggerSocket, UDPLoggerWriter } from 'udp-logger'
+import { UdpLoggerSocket, UdpLoggerWriter } from 'udp-logger'
 
-const socket = new UDPLoggersocket()
-const writer = new UDPLoggerWriter({ filePath: './my-app.log' })
+const socket = new UdpLoggersocket()
+const writer = new UdpLoggerWriter({ filePath: './my-app.log' })
 
 socket.pipe(writer)
 ```
@@ -244,9 +243,9 @@ socket.pipe(writer)
 
 ##### Example with [file-stream-rotator][https://github.com/rogerc/file-stream-rotator]
 ```javascript
-import { UDPLoggerSocket, UDPLoggerWriter } from 'udp-logger'
+import { UdpLoggerSocket, UdpLoggerWriter } from 'udp-logger'
 
-const socket = new UDPLoggersocket()
+const socket = new UdpLoggersocket()
 const fileStreamWithRotating = (await import('file-stream-rotator'))
         .getStream({ filename: '/tmp/test-%DATE%.log', frequency: 'daily', verbose: false, date_format: 'YYYY-MM-DD' })
 
@@ -254,10 +253,10 @@ socket.pipe(fileStreamWithRotating)
 ```
 ---
 
-### class `UDPLoggerWriter`
+### class `UdpLoggerWriter`
 Extends [`Writable` Stream][node-writable]
 
-`UDPLoggerWriter` handles file moving, renaming, etc.. and keeps working after all. Usable if you will use any kind of logrotating ([linux logrotate][linux-logrotate] for example) 
+`UdpLoggerWriter` handles file moving, renaming, etc.. and keeps working after all. Usable if you will use any kind of logrotating ([linux logrotate][linux-logrotate] for example) 
 
 #### Arguments:
 - `options` `<object>` – **required**
@@ -276,13 +275,13 @@ Extends [`Writable` Stream][node-writable]
 
  
 #### Usage
-##### Example how to use socket and use [UDPLoggerSocket][socket]
+##### Example how to use socket and use [UdpLoggerSocket][socket]
 
 ```javascript
-import { UDPLoggerSocket, UDPLoggerWriter } from 'udp-logger'
+import { UdpLoggerSocket, UdpLoggerWriter } from 'udp-logger'
 
-const socket = new UDPLoggersocket()
-const writer = new UDPLoggerWriter({ filePath: './my-app.log' })
+const socket = new UdpLoggersocket()
+const writer = new UdpLoggerWriter({ filePath: './my-app.log' })
 
 socket.pipe(writer)
 ```
@@ -291,7 +290,7 @@ socket.pipe(writer)
 
 ### Additional Exposed variables and functions from [`constants`][constants]
 #### function `DEFAULT_MESSAGE_FORMATTER(data, date, id)`
- - `data` `<any[]>` — deserialized arguments of `log` function from [`UDPLoggerClient`][client]
+ - `data` `<any[]>` — deserialized arguments of `log` function from [`UdpLoggerClient`][client]
  - `date` `<Date>`
  - `id` `<string>`
  - Returns: `<Buffer>` | `<string>` | `<Uint8Array>`

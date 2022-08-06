@@ -3,24 +3,17 @@ import dgram from 'node:dgram'
 import { Buffer } from 'node:buffer'
 import { Readable } from 'node:stream'
 import { ID_SIZE, parseId } from './identifier.js'
-import {
-  DEFAULT_PORT,
-  DEFAULT_MESSAGE_FORMATTER,
-  DEFAULT_DESERIALIZER,
-  DEFAULT_DECRYPT_FUNCTION
-} from './constants.js'
+import { DEFAULT_PORT, DEFAULT_DECRYPT_FUNCTION } from './constants.js'
 
 /**
- * @typedef {object} UDPLoggerSocketOptions
+ * @typedef {object} UdpSocketOptions
  * @property {string} [type='udp4']
  * @property {number} [port=44002]
  * @property {string} [host=('127.0.0.1'|'::1')]
  * @property {string | ((payload: Buffer) => Buffer)} [decryption]
  *    if passed string - will be applied aes-256-ctr encryption with passed string as secret, so it should be 64char long;
  *    if passed function - will be used that function to encrypt every message;
- *    if passed nothing - will not use any kind of encryption
- * @property {(payload: Buffer) => any} [deserializer]
- * @property {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} [formatMessage]
+ *    if passed undefined - will not use any kind of encryption
  * @property {number?} [gcIntervalTime=5_000] how often instance will check internal buffer to delete expired messages
  * @property {number?} [gcExpirationTime=10_000] how long chunks can await all missing chunks in internal buffer
  *
@@ -29,9 +22,9 @@ import {
 
 /**
  * @class
- * @param {UDPLoggerSocketOptions} [options={}]
+ * @param {UdpSocketOptions} [options={}]
  */
-class UDPLoggerSocket extends Readable {
+class UdpSocket extends Readable {
   /** @type {string} */
   #host
 
@@ -52,12 +45,6 @@ class UDPLoggerSocket extends Readable {
 
   /** @type {dgram.Socket} */
   #socket
-
-  /** @type {(Buffer) => any} */
-  #deserializer
-
-  /** @type {(data: any, date:Date, id:number|string) => string | Buffer | Uint8Array} */
-  #formatMessage
 
   /** @type {Map<string, [logBodyMap:Map, lastUpdate:number, logDate:Date, logId:string]>} data */
   #collector = new Map()
@@ -81,15 +68,13 @@ class UDPLoggerSocket extends Readable {
   #handleSocketMessage
 
   /**
-   * @param {UDPLoggerSocketOptions} [options]
+   * @param {UdpSocketOptions} [options]
    */
   constructor ({
     type = 'udp4',
     port = DEFAULT_PORT,
     host = type === 'udp4' ? '127.0.0.1' : '::1',
     decryption,
-    deserializer = DEFAULT_DESERIALIZER,
-    formatMessage = DEFAULT_MESSAGE_FORMATTER,
     gcIntervalTime = 5000,
     gcExpirationTime = 10000,
     ...readableOptions
@@ -98,8 +83,6 @@ class UDPLoggerSocket extends Readable {
 
     this.#port = port
     this.#host = host
-    this.#deserializer = deserializer
-    this.#formatMessage = formatMessage
     this.#type = type
 
     this.#gcIntervalTime = gcIntervalTime
@@ -282,28 +265,6 @@ class UDPLoggerSocket extends Readable {
    * @param {string} id
    */
   #compileMessage (body, date, id) {
-    try {
-      this.#compileMessageUnsafe(body, date, id)
-    } catch (error) {
-      const originMessage = error.message
-
-      error.message = 'compile_message_error'
-      error.ctx = {
-        originMessage,
-        date,
-        id
-      }
-
-      this.emit('warning', error)
-    }
-  }
-
-  /**
-   * @param {Map<number, Buffer>} body
-   * @param {Date|number} date
-   * @param {string} id
-   */
-  #compileMessageUnsafe (body, date, id) {
     let bodyBuffered
 
     if (body.size > 1) {
@@ -316,13 +277,8 @@ class UDPLoggerSocket extends Readable {
       bodyBuffered = [...body.values()][0]
     }
 
-    const deserializedBody = this.#deserializer(bodyBuffered)
-    const message = this.#formatMessage(deserializedBody, date, id) // TODO remove meta info from format
-
-    this.#addMessage(message)
-
-    this.emit('message', message, { body: deserializedBody, date, id }) // TODO remove this unnecessary thing
+    this.#addMessage(Buffer.concat([Buffer.from(id, 'hex'), bodyBuffered]))
   }
 }
 
-export default UDPLoggerSocket
+export default UdpSocket

@@ -1,9 +1,10 @@
 /// <reference types="node" />
 import { Buffer } from "node:buffer"
-import { Readable, ReadableOptions } from "node:stream"
+import { Readable } from "node:stream"
 
-export default UDPLoggerSocket
-export interface UDPLoggerSocketOptions extends ReadableOptions {
+export default UdpSocket
+
+export interface UdpSocketOptions {
   type?: 'udp4'|'udp6'
   port?: number
   host?: string
@@ -13,24 +14,18 @@ export interface UDPLoggerSocketOptions extends ReadableOptions {
    * if passed nothing - will not use any kind of encryption
    */
   decryption?: string | ((payload: Buffer) => Buffer)
-  deserializer?: (payload: Buffer) => any
-  formatMessage?: (
-    data: any,
-    date: Date,
-    id: number | string
-  ) => string | Buffer | Uint8Array,
   /**
    * how often instance will check internal buffer to delete expired messages
    */
-  gcIntervalTime?: number,
+  gcIntervalTime?: number
   /**
    *  how long chunks can await all missing chunks in internal buffer
    */
   gcExpirationTime?: number
 }
 
-declare class UDPLoggerSocket extends Readable {
-  constructor(options: UDPLoggerSocketOptions)
+declare class UdpSocket extends Readable {
+  constructor(options?: UdpSocketOptions)
   get address(): string | null | undefined
   get port(): number
 }

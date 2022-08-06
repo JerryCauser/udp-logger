@@ -11,7 +11,7 @@ import { tryCountErrorHook } from './_main.js'
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function serverTest (UDPLoggerServer) {
+async function serverTest (UdpLoggerServer) {
   const alias = '  server.js:'
   const filePath = path.resolve(
     path.dirname(url.fileURLToPath(import.meta.url)),
@@ -20,7 +20,7 @@ async function serverTest (UDPLoggerServer) {
 
   async function testBasic () {
     const caseAlias = `${alias} server basic tests ->`
-    const server = new UDPLoggerServer({
+    const server = new UdpLoggerServer({
       filePath,
       port: 45003
     })

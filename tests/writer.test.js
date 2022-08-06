@@ -34,14 +34,14 @@ async function unlinkAllWithEnsure (paths) {
 
 /**
  *
- * @param {UDPLoggerWriter} UDPLoggerWriter
+ * @param {UdpLoggerWriter} UdpLoggerWriter
  * @param {'ESM'|'CJS'} type
  * @param {string|undefined|null} encoding
  * @param {'buffer'|'string'} dataType
  * @returns {Promise<number>}
  */
 async function writerTest (
-  UDPLoggerWriter,
+  UdpLoggerWriter,
   type,
   encoding = 'utf8',
   dataType = 'string'
@@ -109,7 +109,7 @@ async function writerTest (
       return fileData
     }
 
-    const writer = new UDPLoggerWriter({ filePath, encoding })
+    const writer = new UdpLoggerWriter({ filePath, encoding })
 
     let started = 0
     let closed = 0
