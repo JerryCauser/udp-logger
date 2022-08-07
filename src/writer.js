@@ -1,5 +1,5 @@
 /** Rewritten https://github.com/nodejs/node/blob/73ba8830d59015e8554903301245ee32c31baa9f/lib/internal/fs/streams.js#L307
- * But I've added here logic to recreate file on rename/remove and keep writing
+ * But I've added logic to recreate file on rename/remove and keep writing
  * */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -8,7 +8,7 @@ import { Writable } from 'node:stream'
 const IO_DONE = Symbol('IO_DONE')
 
 /**
- * @typedef {object} UDPLoggerWriterOptions
+ * @typedef {object} UdpLoggerWriterOptions
  * @property {string} filePath supports absolute and relative paths.
  *            If passed relative path then will use process.cwd() as a base path
  * @property {string} [encoding='utf8']
@@ -18,10 +18,10 @@ const IO_DONE = Symbol('IO_DONE')
  */
 
 /**
- * @param {UDPLoggerWriterOptions} [options={}]
+ * @param {UdpLoggerWriterOptions} [options={}]
  * @constructor
  */
-class UDPLoggerWriter extends Writable {
+class UdpLoggerWriter extends Writable {
   #filePath
   #fileName
   #dir
@@ -37,7 +37,7 @@ class UDPLoggerWriter extends Writable {
   #bytesWritten = 0
 
   /**
-   * @param {UDPLoggerWriterOptions} options
+   * @param {UdpLoggerWriterOptions} options
    */
   constructor ({
     filePath,
@@ -219,4 +219,4 @@ class UDPLoggerWriter extends Writable {
   }
 }
 
-export default UDPLoggerWriter
+export default UdpLoggerWriter

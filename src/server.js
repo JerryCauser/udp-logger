@@ -1,13 +1,13 @@
 import { EventEmitter } from 'node:events'
-import UDPLoggerSocket from './socket.js'
-import UDPLoggerWriter from './writer.js'
+import UdpLoggerSocket from './socket.js'
+import UdpLoggerWriter from './writer.js'
 import { DEFAULT_PORT } from './constants.js'
 
 /**
- * @param {UDPLoggerSocketOptions & UDPLoggerWriterOptions} [options={}]
+ * @param {UdpSocketOptions & UdpLoggerSocketOptions & UdpLoggerWriterOptions} [options={}]
  * @constructor
  */
-class UDPLoggerServer extends EventEmitter {
+class UdpLoggerServer extends EventEmitter {
   #options
 
   socket
@@ -22,8 +22,8 @@ class UDPLoggerServer extends EventEmitter {
   }
 
   async start () {
-    this.socket = new UDPLoggerSocket(this.#options)
-    this.writer = new UDPLoggerWriter(this.#options)
+    this.socket = new UdpLoggerSocket(this.#options)
+    this.writer = new UdpLoggerWriter(this.#options)
 
     this.socket.pipe(this.writer)
 
@@ -73,4 +73,4 @@ class UDPLoggerServer extends EventEmitter {
   }
 }
 
-export default UDPLoggerServer
+export default UdpLoggerServer

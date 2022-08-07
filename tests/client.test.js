@@ -19,7 +19,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
  * @param {number} port
  * @returns {Promise<Socket & {messages:Buffer[], stop: (() => Promise<void>)}>}
  */
-const createUDPSocket = async (port) => {
+const createUdpSocket = async (port) => {
   const socket = Object.create(
     dgram.createSocket({ type: 'udp4', reuseAddr: true })
   )
@@ -45,14 +45,15 @@ const createUDPSocket = async (port) => {
   return socket
 }
 
-async function clientTest (UDPLoggerClient, identifier) {
+async function clientTest (UdpLoggerClient, identifier, sync = true) {
   const { ID_SIZE, parseId } = identifier
-  const alias = '  client.js:'
+  const alias = `${sync ? '' : ' async'} client.js:`
 
   async function testClientSmall () {
     const caseAlias = `${alias} client sending small message ->`
-    const socket = await createUDPSocket(45002)
-    const client = new UDPLoggerClient({
+    const socket = await createUdpSocket(45002)
+    const client = new UdpLoggerClient({
+      sync,
       port: 45002,
       packetSize: 300,
       serializer: ([buf]) => buf
@@ -108,8 +109,9 @@ async function clientTest (UDPLoggerClient, identifier) {
 
   async function testClientLarge () {
     const caseAlias = `${alias} client sending large message ->`
-    const socket = await createUDPSocket(45003)
-    const client = new UDPLoggerClient({
+    const socket = await createUdpSocket(45003)
+    const client = new UdpLoggerClient({
+      sync,
       port: 45003,
       packetSize: 300,
       serializer: ([buf]) => buf

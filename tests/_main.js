@@ -18,10 +18,10 @@ import writerTest from './writer.test.js'
 export default async function _main (
   type,
   {
-    UDPLoggerClient,
-    UDPLoggerSocket,
-    UDPLoggerWriter,
-    UDPLoggerServer,
+    UdpLoggerClient,
+    UdpLoggerSocket,
+    UdpLoggerWriter,
+    UdpLoggerServer,
     _constants,
     _identifier
   }
@@ -31,13 +31,14 @@ export default async function _main (
 
   errorsCount += await identifierTests(_identifier)
   errorsCount += await constantsTest(_constants)
-  errorsCount += await clientTest(UDPLoggerClient, _identifier)
-  errorsCount += await socketTest(UDPLoggerSocket, _identifier, _constants)
-  errorsCount += await writerTest(UDPLoggerWriter, type, 'utf8', 'string')
-  errorsCount += await writerTest(UDPLoggerWriter, type, 'utf8', 'buffer')
-  errorsCount += await writerTest(UDPLoggerWriter, type, null, 'string')
-  errorsCount += await writerTest(UDPLoggerWriter, type, null, 'buffer')
-  errorsCount += await serverTest(UDPLoggerServer)
+  errorsCount += await clientTest(UdpLoggerClient, _identifier, true)
+  errorsCount += await clientTest(UdpLoggerClient, _identifier, false)
+  errorsCount += await socketTest(UdpLoggerSocket, _identifier, _constants)
+  errorsCount += await writerTest(UdpLoggerWriter, type, 'utf8', 'string')
+  errorsCount += await writerTest(UdpLoggerWriter, type, 'utf8', 'buffer')
+  errorsCount += await writerTest(UdpLoggerWriter, type, null, 'string')
+  errorsCount += await writerTest(UdpLoggerWriter, type, null, 'buffer')
+  errorsCount += await serverTest(UdpLoggerServer)
 
   if (errorsCount === 0) console.log('All tests passed')
   else {

@@ -1,15 +1,15 @@
-import { Writable, WritableOptions } from 'node:stream'
+import { Writable } from 'node:stream'
 
-export default UDPLoggerWriter
+export default UdpLoggerWriter
 
-export interface UDPLoggerWriterOptions extends WritableOptions {
+export interface UdpLoggerWriterOptions {
   filePath: string
   encoding?: string
   flags?: string
 }
 
-declare class UDPLoggerWriter extends Writable {
-  constructor (options: UDPLoggerWriterOptions)
+declare class UdpLoggerWriter extends Writable {
+  constructor (options: UdpLoggerWriterOptions)
   get path(): string
   get fd(): number
   get bytesWritten(): number

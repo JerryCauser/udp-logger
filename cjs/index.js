@@ -16,7 +16,10 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target, mod));
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // index.js
@@ -24,16 +27,16 @@ var udp_logger_exports = {};
 __export(udp_logger_exports, {
   DEFAULT_MESSAGE_FORMATTER: () => DEFAULT_MESSAGE_FORMATTER,
   DEFAULT_PORT: () => DEFAULT_PORT,
-  UDPLoggerClient: () => client_default,
-  UDPLoggerServer: () => server_default,
-  UDPLoggerSocket: () => socket_default,
-  UDPLoggerWriter: () => writer_default,
+  UdpLoggerClient: () => client_default,
+  UdpLoggerServer: () => server_default,
+  UdpLoggerSocket: () => socket_default,
+  UdpLoggerWriter: () => writer_default,
   _constants: () => constants_exports,
   _identifier: () => identifier_exports
 });
 module.exports = __toCommonJS(udp_logger_exports);
 
-// src/socket.js
+// src/udp-socket.js
 var import_node_events = __toESM(require("node:events"), 1);
 var import_node_dgram = __toESM(require("node:dgram"), 1);
 var import_node_buffer3 = require("node:buffer");
@@ -80,14 +83,17 @@ function generateId() {
   if (cacheOffset >= CACHE_SIZE)
     refreshCache();
   const id = import_node_buffer.Buffer.alloc(ID_SIZE);
-  id.set([
-    CACHE_BUFFER[cacheOffset],
-    CACHE_BUFFER[cacheOffset + 1],
-    CACHE_BUFFER[cacheOffset + 2],
-    CACHE_BUFFER[cacheOffset + 3],
-    CACHE_BUFFER[cacheOffset + 4],
-    CACHE_BUFFER[cacheOffset + 5]
-  ], TIME_META_SIZE);
+  id.set(
+    [
+      CACHE_BUFFER[cacheOffset],
+      CACHE_BUFFER[cacheOffset + 1],
+      CACHE_BUFFER[cacheOffset + 2],
+      CACHE_BUFFER[cacheOffset + 3],
+      CACHE_BUFFER[cacheOffset + 4],
+      CACHE_BUFFER[cacheOffset + 5]
+    ],
+    TIME_META_SIZE
+  );
   cacheOffset += RANDOM_SIZE;
   incrementId = ++incrementId & INCREMENTAL_EDGE;
   id.writeUIntBE(Date.now(), 0, DATE_SIZE);
@@ -146,7 +152,10 @@ var DEFAULT_ENCRYPT_FUNCTION = (payload, secret) => {
   const cipher = import_node_crypto2.default.createCipheriv(DEFAULT_ENCRYPTION, secret, iv);
   const beginChunk = cipher.update(payload);
   const finalChunk = cipher.final();
-  return import_node_buffer2.Buffer.concat([iv, beginChunk, finalChunk], IV_SIZE + beginChunk.length + finalChunk.length);
+  return import_node_buffer2.Buffer.concat(
+    [iv, beginChunk, finalChunk],
+    IV_SIZE + beginChunk.length + finalChunk.length
+  );
 };
 var DEFAULT_DECRYPT_FUNCTION = (buffer, secret) => {
   const iv = buffer.subarray(0, IV_SIZE);
@@ -154,11 +163,14 @@ var DEFAULT_DECRYPT_FUNCTION = (buffer, secret) => {
   const decipher = import_node_crypto2.default.createDecipheriv(DEFAULT_ENCRYPTION, secret, iv);
   const beginChunk = decipher.update(payload);
   const finalChunk = decipher.final();
-  return import_node_buffer2.Buffer.concat([beginChunk, finalChunk], beginChunk.length + finalChunk.length);
+  return import_node_buffer2.Buffer.concat(
+    [beginChunk, finalChunk],
+    beginChunk.length + finalChunk.length
+  );
 };
 
-// src/socket.js
-var UDPLoggerSocket = class extends import_node_stream.Readable {
+// src/udp-socket.js
+var UdpSocket = class extends import_node_stream.Readable {
   #host;
   #port;
   #address;
@@ -166,8 +178,6 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
   #decryptionFunction;
   #decryptionSecret;
   #socket;
-  #deserializer;
-  #formatMessage;
   #collector = /* @__PURE__ */ new Map();
   #gcIntervalId;
   #gcIntervalTime;
@@ -180,8 +190,6 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     port = DEFAULT_PORT,
     host = type === "udp4" ? "127.0.0.1" : "::1",
     decryption,
-    deserializer = DEFAULT_DESERIALIZER,
-    formatMessage = DEFAULT_MESSAGE_FORMATTER,
     gcIntervalTime = 5e3,
     gcExpirationTime = 1e4,
     ...readableOptions
@@ -189,8 +197,6 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     super({ ...readableOptions });
     this.#port = port;
     this.#host = host;
-    this.#deserializer = deserializer;
-    this.#formatMessage = formatMessage;
     this.#type = type;
     this.#gcIntervalTime = gcIntervalTime;
     this.#gcExpirationTime = gcExpirationTime;
@@ -318,8 +324,40 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
     }
   };
   #compileMessage(body, date, id) {
+    let bodyBuffered;
+    if (body.size > 1) {
+      const sortedBuffers = [...body.entries()].sort((a, b) => a[0] - b[0]).map((n) => n[1]);
+      bodyBuffered = import_node_buffer3.Buffer.concat(sortedBuffers);
+    } else {
+      bodyBuffered = [...body.values()][0];
+    }
+    this.#addMessage(import_node_buffer3.Buffer.concat([import_node_buffer3.Buffer.from(id, "hex"), bodyBuffered]));
+  }
+};
+var udp_socket_default = UdpSocket;
+
+// src/socket.js
+var UdpLoggerSocket = class extends udp_socket_default {
+  #deserializer;
+  #formatMessage;
+  constructor({
+    deserializer = DEFAULT_DESERIALIZER,
+    formatMessage = DEFAULT_MESSAGE_FORMATTER,
+    ...socketOptions
+  } = {}) {
+    super({ ...socketOptions });
+    this.#deserializer = deserializer;
+    this.#formatMessage = formatMessage;
+  }
+  push(data, encoding) {
+    if (data === null)
+      return super.push(data, encoding);
+    const date = new Date(data.readUintBE(0, DATE_SIZE));
+    const id = data.subarray(0, SEED_SIZE).toString("hex");
     try {
-      this.#compileMessageUnsafe(body, date, id);
+      const deserializedBody = this.#deserializer(data.subarray(SEED_SIZE));
+      const message = this.#formatMessage(deserializedBody, date, id);
+      return super.push(message, encoding);
     } catch (error) {
       const originMessage = error.message;
       error.message = "compile_message_error";
@@ -330,29 +368,121 @@ var UDPLoggerSocket = class extends import_node_stream.Readable {
       };
       this.emit("warning", error);
     }
-  }
-  #compileMessageUnsafe(body, date, id) {
-    let bodyBuffered;
-    if (body.size > 1) {
-      const sortedBuffers = [...body.entries()].sort((a, b) => a[0] - b[0]).map((n) => n[1]);
-      bodyBuffered = import_node_buffer3.Buffer.concat(sortedBuffers);
-    } else {
-      bodyBuffered = [...body.values()][0];
-    }
-    const deserializedBody = this.#deserializer(bodyBuffered);
-    const message = this.#formatMessage(deserializedBody, date, id);
-    this.#addMessage(message);
-    this.emit("message", message, { body: deserializedBody, date, id });
+    return true;
   }
 };
-var socket_default = UDPLoggerSocket;
+var socket_default = UdpLoggerSocket;
+
+// src/udp-client.js
+var import_node_dgram2 = __toESM(require("node:dgram"), 1);
+var import_node_buffer4 = require("node:buffer");
+var import_node_events2 = require("node:events");
+var UdpClient = class extends import_node_events2.EventEmitter {
+  #port;
+  #host;
+  #type;
+  #packetSize;
+  #encryptionFunction;
+  #encryptionSecret;
+  #connecting;
+  #socket;
+  constructor({
+    type = "udp4",
+    port = 44002,
+    host = type === "udp4" ? "127.0.0.1" : "::1",
+    packetSize = 1280,
+    encryption,
+    ...eventEmitterOptions
+  } = {}) {
+    super({ ...eventEmitterOptions });
+    this.#port = port;
+    this.#host = host;
+    this.#type = type;
+    this.#packetSize = packetSize - ID_SIZE;
+    if (encryption) {
+      if (typeof encryption === "string") {
+        this.#packetSize = packetSize - IV_SIZE;
+        this.#encryptionSecret = import_node_buffer4.Buffer.from(encryption, "hex");
+        this.#encryptionFunction = (data) => DEFAULT_ENCRYPT_FUNCTION(data, this.#encryptionSecret);
+      } else if (encryption instanceof Function) {
+        this.#encryptionFunction = encryption;
+      }
+    }
+    this.#socket = import_node_dgram2.default.createSocket(this.#type);
+    this.#connecting = (0, import_node_events2.once)(this.#socket, "connect");
+    this.#socket.connect(this.#port, this.#host, () => {
+      this.emit("ready");
+    });
+  }
+  send(buffer) {
+    this.#send(buffer, generateId());
+  }
+  #send(payload, id) {
+    const total = Math.ceil(payload.length / this.#packetSize) - 1;
+    for (let i = 0; i < payload.length; i += this.#packetSize) {
+      let chunk = this.#markChunk(
+        id,
+        total,
+        i / this.#packetSize,
+        payload.subarray(i, i + this.#packetSize)
+      );
+      if (this.#encryptionFunction !== void 0) {
+        chunk = this.#encryptionFunction(chunk);
+      }
+      this.#sendChunk(chunk);
+    }
+  }
+  #sendChunk(payload) {
+    this.#socket.send(payload);
+  }
+  #markChunk(id, total, index, chunk) {
+    const resultChunk = import_node_buffer4.Buffer.alloc(chunk.length + ID_SIZE);
+    resultChunk.set(id, 0);
+    setChunkMetaInfo(resultChunk, total, index);
+    resultChunk.set(chunk, ID_SIZE);
+    return resultChunk;
+  }
+};
+var udp_client_default = UdpClient;
+
+// src/client.js
+var UdpLoggerClient = class extends udp_client_default {
+  #sync;
+  #serializer;
+  constructor({
+    serializer = DEFAULT_SERIALIZER,
+    sync = false,
+    ...udpClientOptions
+  } = {}) {
+    super({ ...udpClientOptions });
+    this.#sync = sync;
+    this.#serializer = serializer;
+  }
+  log(...args) {
+    if (this.#sync) {
+      return this.#logSync(args);
+    } else {
+      return this.#logAsync(args);
+    }
+  }
+  #logSync(args) {
+    this.send(this.#serializer(args));
+  }
+  #logAsync(args) {
+    setImmediate(() => this.send(this.#serializer(args)));
+  }
+};
+var client_default = UdpLoggerClient;
+
+// src/server.js
+var import_node_events3 = require("node:events");
 
 // src/writer.js
 var import_node_fs = __toESM(require("node:fs"), 1);
 var import_node_path = __toESM(require("node:path"), 1);
 var import_node_stream2 = require("node:stream");
 var IO_DONE = Symbol("IO_DONE");
-var UDPLoggerWriter = class extends import_node_stream2.Writable {
+var UdpLoggerWriter = class extends import_node_stream2.Writable {
   #filePath;
   #fileName;
   #dir;
@@ -385,7 +515,10 @@ var UDPLoggerWriter = class extends import_node_stream2.Writable {
   _destroy(error, callback) {
     this.#watcher.close();
     if (this.#isPerforming) {
-      this.once(IO_DONE, (err) => this.#close(err).then(() => callback(error)).catch(callback));
+      this.once(
+        IO_DONE,
+        (err) => this.#close(err).then(() => callback(error)).catch(callback)
+      );
     } else {
       this.#close(error).then(() => callback(error)).catch(callback);
     }
@@ -484,91 +617,10 @@ var UDPLoggerWriter = class extends import_node_stream2.Writable {
     }
   };
 };
-var writer_default = UDPLoggerWriter;
-
-// src/client.js
-var import_node_dgram2 = __toESM(require("node:dgram"), 1);
-var import_node_buffer4 = require("node:buffer");
-var import_node_events2 = require("node:events");
-var UDPLoggerClient = class extends import_node_events2.EventEmitter {
-  #port;
-  #host;
-  #type;
-  #packetSize;
-  #isAsync;
-  #serializer;
-  #encryptionFunction;
-  #encryptionSecret;
-  #connecting;
-  #socket;
-  constructor({
-    type = "udp4",
-    port = 44002,
-    host = type === "udp4" ? "127.0.0.1" : "::1",
-    packetSize = 1280,
-    isAsync = false,
-    encryption,
-    serializer = DEFAULT_SERIALIZER,
-    ...eventEmitterOptions
-  } = {}) {
-    super({ ...eventEmitterOptions });
-    this.#port = port;
-    this.#host = host;
-    this.#type = type;
-    this.#packetSize = packetSize - ID_SIZE;
-    this.#isAsync = isAsync;
-    this.#serializer = serializer;
-    if (encryption) {
-      if (typeof encryption === "string") {
-        this.#packetSize = packetSize - IV_SIZE;
-        this.#encryptionSecret = import_node_buffer4.Buffer.from(encryption, "hex");
-        this.#encryptionFunction = (data) => DEFAULT_ENCRYPT_FUNCTION(data, this.#encryptionSecret);
-      } else if (encryption instanceof Function) {
-        this.#encryptionFunction = encryption;
-      }
-    }
-    this.#socket = import_node_dgram2.default.createSocket(this.#type);
-    this.#connecting = (0, import_node_events2.once)(this.#socket, "connect");
-    this.#socket.connect(this.#port, this.#host, () => {
-      this.log = isAsync ? this.#asyncLog : this.#syncLog;
-      this.emit("ready");
-    });
-  }
-  log = (...args) => {
-    this.#connecting.then(() => this.#isAsync ? this.#asyncLog(...args) : this.#syncLog(...args));
-  };
-  #syncLog = (...args) => {
-    this.#send(this.#serializer(args), generateId());
-  };
-  #asyncLog = (...args) => {
-    setImmediate(this.#syncLog, ...args);
-  };
-  #send = (payload, id) => {
-    const total = Math.ceil(payload.length / this.#packetSize) - 1;
-    for (let i = 0; i < payload.length; i += this.#packetSize) {
-      let chunk = this.#markChunk(id, total, i / this.#packetSize, payload.subarray(i, i + this.#packetSize));
-      if (this.#encryptionFunction !== void 0) {
-        chunk = this.#encryptionFunction(chunk);
-      }
-      this.#sendChunk(chunk);
-    }
-  };
-  #sendChunk = (payload) => {
-    this.#socket.send(payload);
-  };
-  #markChunk(id, total, index, chunk) {
-    const resultChunk = import_node_buffer4.Buffer.alloc(chunk.length + ID_SIZE);
-    resultChunk.set(id, 0);
-    setChunkMetaInfo(resultChunk, total, index);
-    resultChunk.set(chunk, ID_SIZE);
-    return resultChunk;
-  }
-};
-var client_default = UDPLoggerClient;
+var writer_default = UdpLoggerWriter;
 
 // src/server.js
-var import_node_events3 = require("node:events");
-var UDPLoggerServer = class extends import_node_events3.EventEmitter {
+var UdpLoggerServer = class extends import_node_events3.EventEmitter {
   #options;
   socket;
   writer;
@@ -610,15 +662,15 @@ var UDPLoggerServer = class extends import_node_events3.EventEmitter {
     return this;
   }
 };
-var server_default = UDPLoggerServer;
+var server_default = UdpLoggerServer;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   DEFAULT_MESSAGE_FORMATTER,
   DEFAULT_PORT,
-  UDPLoggerClient,
-  UDPLoggerServer,
-  UDPLoggerSocket,
-  UDPLoggerWriter,
+  UdpLoggerClient,
+  UdpLoggerServer,
+  UdpLoggerSocket,
+  UdpLoggerWriter,
   _constants,
   _identifier
 });
