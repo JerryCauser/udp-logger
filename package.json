@@ -10,6 +10,16 @@
       "default": "./index.js"
     }
   },
+  "files": [
+    "/cjs/index.js",
+    "/cjs/package.json",
+    "/src",
+    "/types",
+    "index.js",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=16.0.0"
   },

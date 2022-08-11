@@ -1,5 +1,6 @@
 # Udp Logger 
 [![npm](https://img.shields.io/npm/v/udp-logger)](https://www.npmjs.com/package/udp-logger)
+[![tests](https://img.shields.io/github/workflow/status/JerryCauser/udp-logger/tests?label=tests&logo=github)](https://github.com/JerryCauser/udp-logger/actions/workflows/tests.yml)
 [![LGTM Grade](https://img.shields.io/lgtm/grade/javascript/github/JerryCauser/udp-logger)](https://lgtm.com/projects/g/JerryCauser/udp-logger)
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
 [![GitHub](https://img.shields.io/github/license/JerryCauser/udp-logger)](https://github.com/JerryCauser/udp-logger/blob/master/LICENSE)
